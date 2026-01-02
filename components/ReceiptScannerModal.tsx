@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import { Camera, CameraType } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 
 /**
  * Props for the ReceiptScannerModal component.
@@ -14,156 +17,316 @@ interface ReceiptScannerModalProps {
  * A modal component for scanning receipts using the device's camera.
  */
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClose, onConfirm }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const cameraRef = useRef<Camera>(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [capturedImageBase64, setCapturedImageBase64] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isTakingPicture, setIsTakingPicture] = useState(false);
 
   /**
-   * Initializes and starts the camera stream.
-   * Wrapped in useCallback to memoize the function.
-   */
-  const startCamera = useCallback(async () => {
-    try {
-      // Stop any existing stream before starting a new one.
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      // Request access to the user's camera.
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }, // Prioritize the rear camera on mobile devices.
-      });
-      setStream(newStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream; // Attach the stream to the video element.
-      }
-      setCapturedImage(null); // Clear any previously captured image.
-      setError(null);
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      setError('Could not access the camera. Please check permissions and try again.');
-      // If 'environment' facing mode fails, try a fallback without it.
-      if (err instanceof DOMException && err.name === "OverconstrainedError") {
-          try {
-             const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-             setStream(fallbackStream);
-             if (videoRef.current) {
-                videoRef.current.srcObject = fallbackStream;
-             }
-             setError(null);
-          } catch (fallbackErr) {
-             console.error('Error accessing fallback camera:', fallbackErr);
-          }
-      }
-    }
-  }, [stream]); // Dependency on `stream` to allow re-calling if needed.
-
-  /**
-   * Effect to start the camera when the component mounts and clean up when it unmounts.
+   * Effect to request camera permissions when the component mounts.
    */
   useEffect(() => {
-    startCamera();
-    // Cleanup function: stop all media tracks when the component is unmounted.
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+      if (status !== 'granted') {
+        setError('Camera permission not granted. Please enable it in your device settings.');
       }
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount.
+    })();
+  }, []);
 
   /**
-   * Captures a photo from the video stream.
-   * It draws the current video frame onto a hidden canvas and gets the data URL.
+   * Captures a photo using the camera.
    */
-  const handleTakePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // Convert the canvas content to a JPEG data URL.
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // 0.9 is the image quality.
-        // We only need the base64 part of the data URL, so we split and take the second part.
-        const base64Data = dataUrl.split(',')[1];
-        setCapturedImage(base64Data);
-        // Stop the camera stream to freeze the frame and save battery.
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
+  const handleTakePhoto = async () => {
+    if (cameraRef.current) {
+      setIsTakingPicture(true);
+      try {
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 0.9,
+          base64: true,
+          exif: false, // receipts don't need exif data
+          // Skip processing if on Android for faster capture and to use raw image data
+          skipProcessing: Camera.Constants.Platform === 'android' ? true : false,
+        });
+        setCapturedImageUri(photo.uri);
+        setCapturedImageBase64(photo.base64);
+        setError(null);
+      } catch (err) {
+        console.error('Error taking picture:', err);
+        setError('Failed to take picture. Please try again.');
+      } finally {
+        setIsTakingPicture(false);
       }
     }
   };
 
   /**
-   * Handles the "Retake" button click. Clears the captured image and restarts the camera.
+   * Handles the "Retake" button click. Clears the captured image and restarts the camera preview.
    */
   const handleRetake = () => {
-    setCapturedImage(null);
-    startCamera();
+    setCapturedImageUri(null);
+    setCapturedImageBase64(null);
+    setError(null);
   };
 
   /**
    * Handles the "Use Picture" button click. Calls the onConfirm prop with the image data.
    */
   const handleConfirm = () => {
-    if (capturedImage) {
-      onConfirm(capturedImage);
+    if (capturedImageBase64) {
+      onConfirm(capturedImageBase64);
     }
   };
 
+  // Render loading state while checking permissions
+  if (hasPermission === null) {
+    return (
+      <Modal transparent={true} animationType="fade" visible={true}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Requesting camera permission...</Text>
+        </View>
+      </Modal>
+    );
+  }
+
+  // Render error message if permission is denied
+  if (hasPermission === false) {
+    return (
+      <Modal transparent={true} animationType="fade" visible={true}>
+        <View style={styles.errorScreen}>
+          <Text style={styles.errorScreenText}>{error}</Text>
+          <TouchableOpacity onPress={onClose} style={styles.errorScreenCloseButton}>
+            <Text style={styles.errorScreenCloseButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
-      <button onClick={onClose} className="absolute top-4 right-4 text-white text-3xl font-bold z-20">&times;</button>
-      
-      <div className="relative w-full max-w-2xl aspect-[9/16] md:aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-2xl">
-        {/* Display error message if camera access fails */}
-        {error && (
-            <div className="absolute inset-0 flex items-center justify-center text-center text-red-400 p-4">
-                {error}
-            </div>
-        )}
+    <Modal
+      animationType="slide"
+      transparent={false} // Use false for full screen modal
+      visible={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Ionicons name="close-circle" size={30} color="white" />
+        </TouchableOpacity>
         
-        {/* Live camera feed */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          className={`w-full h-full object-cover ${capturedImage ? 'hidden' : ''}`}
-        />
+        <View style={styles.cameraPreviewContainer}>
+          {/* Display error message if camera access fails */}
+          {error && (
+              <View style={styles.errorOverlay}>
+                  <Text style={styles.errorOverlayText}>Error: {error}</Text>
+              </View>
+          )}
+          
+          {/* Live camera feed or captured image preview */}
+          {capturedImageUri ? (
+            <Image
+              source={{ uri: capturedImageUri }}
+              style={styles.capturedImage}
+            />
+          ) : (
+            <Camera
+              style={styles.camera}
+              type={CameraType.back} // Prioritize back camera
+              ref={cameraRef}
+            >
+              {isTakingPicture && (
+                <View style={styles.activityIndicatorContainer}>
+                  <ActivityIndicator size="large" color="white" />
+                </View>
+              )}
+            </Camera>
+          )}
+        </View>
 
-        {/* Captured image preview */}
-        {capturedImage && (
-          <img
-            src={`data:image/jpeg;base64,${capturedImage}`}
-            alt="Receipt preview"
-            className="w-full h-full object-contain"
-          />
-        )}
-        {/* Hidden canvas used for capturing the image */}
-        <canvas ref={canvasRef} className="hidden" />
-      </div>
-
-      <div className="mt-6 flex justify-center items-center space-x-8 w-full max-w-2xl">
-        {/* Conditionally render buttons based on whether an image has been captured */}
-        {capturedImage ? (
-          <>
-            <button onClick={handleRetake} className="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg shadow-md">
-              Retake
-            </button>
-            <button onClick={handleConfirm} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md">
-              Use Picture
-            </button>
-          </>
-        ) : (
-          <button onClick={handleTakePhoto} disabled={!!error} className="w-20 h-20 bg-white rounded-full border-4 border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-white">
-            <span className="sr-only">Take photo</span>
-          </button>
-        )}
-      </div>
-    </div>
+        <View style={styles.buttonActionsContainer}>
+          {/* Conditionally render buttons based on whether an image has been captured */}
+          {capturedImageUri ? (
+            <>
+              <TouchableOpacity onPress={handleRetake} style={styles.retakeButton}>
+                <Text style={styles.buttonText}>
+                  Retake
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleConfirm} style={styles.confirmButton}>
+                <Text style={styles.buttonText}>
+                  Use Picture
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity onPress={handleTakePhoto} disabled={!!error || isTakingPicture} style={styles.takePhotoButton}>
+              {isTakingPicture ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <View style={styles.takePhotoInnerCircle} />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 10,
+  },
+  errorScreen: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorScreenText: {
+    color: '#EF4444',
+    textAlign: 'center',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  errorScreenCloseButton: {
+    backgroundColor: '#4B5563',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  errorScreenCloseButtonText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: 'black', // fixed inset-0 bg-black
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16, // p-4
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40, // top-4
+    right: 20, // right-4
+    zIndex: 10, // z-20
+    // text-white text-3xl font-bold is handled by Ionicons
+  },
+  cameraPreviewContainer: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 9 / 16, // aspect-[9/16]
+    // md:aspect-video for larger screens might require responsive logic not directly in StyleSheet
+    backgroundColor: '#111827', // bg-gray-900
+    borderRadius: 8, // rounded-lg
+    overflow: 'hidden',
+    shadowColor: '#000', // shadow-2xl
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5.46,
+    elevation: 10,
+  },
+  errorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 5,
+  },
+  errorOverlayText: {
+    color: '#EF4444', // text-red-400
+    textAlign: 'center',
+  },
+  camera: {
+    flex: 1,
+  },
+  activityIndicatorContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  capturedImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain', // object-contain
+  },
+  buttonActionsContainer: {
+    marginTop: 24, // mt-6
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // space-x-8 (marginRight/marginLeft on buttons)
+    width: '100%',
+    maxWidth: 600, // max-w-2xl
+  },
+  retakeButton: {
+    paddingHorizontal: 24, // px-6
+    paddingVertical: 12, // py-3
+    backgroundColor: '#4B5563', // bg-gray-600
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-md
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+    marginHorizontal: 16, // Simulating space-x-8
+  },
+  confirmButton: {
+    paddingHorizontal: 24, // px-6
+    paddingVertical: 12, // py-3
+    backgroundColor: '#7C3AED', // bg-purple-600
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-md
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+    marginHorizontal: 16, // Simulating space-x-8
+  },
+  takePhotoButton: {
+    width: 80, // w-20
+    height: 80, // h-20
+    backgroundColor: 'white',
+    borderRadius: 40, // rounded-full
+    borderWidth: 4, // border-4
+    borderColor: '#6B7280', // border-gray-500
+    justifyContent: 'center',
+    alignItems: 'center',
+    // disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-white
+  },
+  takePhotoInnerCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'white',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});

@@ -1,5 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
 import { AddPurchaseModal } from './components/AddPurchaseModal';
@@ -15,7 +17,6 @@ import { FAST_FOOD_KEYWORDS } from './lib/keywords';
 
 /**
  * Provides a set of sample transactions for initial state or when history is cleared.
- * @returns An array of sample Transaction objects.
  */
 const getSampleTransactions = (): Transaction[] => {
   const today = new Date();
@@ -114,34 +115,13 @@ export default function App() {
   // --- State Management ---
 
   // Manages the list of all transactions.
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-        const storedTransactions = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (storedTransactions) {
-            const parsed = JSON.parse(storedTransactions) as Transaction[];
-             if (Array.isArray(parsed) && parsed.length > 0) {
-                 return parsed;
-            }
-        }
-    } catch (error) {
-        console.error("Error reading transactions from localStorage", error);
-    }
-    return getSampleTransactions();
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // User Profile State
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-      try {
-          const stored = window.localStorage.getItem(USER_PROFILE_KEY);
-          return stored ? JSON.parse(stored) : null;
-      } catch (e) { return null; }
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Manages the selected AI tone.
-  const [aiTone, setAiTone] = useState<AiTone>(() => {
-    const storedTone = window.localStorage.getItem(AI_TONE_KEY);
-    return (storedTone === 'stern' || storedTone === 'encouraging' || storedTone === 'ruthless') ? storedTone : 'encouraging';
-  });
+  const [aiTone, setAiTone] = useState<AiTone>('encouraging');
 
   // State for controlling modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -149,7 +129,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Global loading and error states
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Returnley is thinking...');
   const [error, setError] = useState<string | null>(null);
 
@@ -166,23 +146,50 @@ export default function App() {
   // --- Side Effects (useEffect) ---
 
   useEffect(() => {
-    try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(transactions));
-    } catch (error) {
-        console.error("Error writing to localStorage", error);
-    }
-  }, [transactions]);
-  
-  useEffect(() => {
-    window.localStorage.setItem(AI_TONE_KEY, aiTone);
-  }, [aiTone]);
+    async function loadData() {
+      try {
+        const storedTransactions = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
+        if (storedTransactions) {
+          const parsed = JSON.parse(storedTransactions) as Transaction[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTransactions(parsed);
+          }
+        } else {
+          setTransactions(getSampleTransactions());
+        }
 
-  useEffect(() => {
-      if (userProfile) {
-          window.localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+        const storedProfile = await AsyncStorage.getItem(USER_PROFILE_KEY);
+        if (storedProfile) {
+          setUserProfile(JSON.parse(storedProfile));
+        }
+
+        const storedTone = await AsyncStorage.getItem(AI_TONE_KEY);
+        if (storedTone) {
+          setAiTone(storedTone as AiTone);
+        }
+      } catch (error) {
+        console.error("Error loading data from AsyncStorage", error);
+      } finally {
+        setIsLoading(false);
       }
-  }, [userProfile]);
+    }
+    loadData();
+  }, []);
 
+  useEffect(() => {
+    async function saveData() {
+      try {
+        await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(transactions));
+        if (userProfile) {
+          await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+        }
+        await AsyncStorage.setItem(AI_TONE_KEY, aiTone);
+      } catch (error) {
+        console.error("Error saving data to AsyncStorage", error);
+      }
+    }
+    saveData();
+  }, [transactions, userProfile, aiTone]);
 
   const updateTransactionStatus = useCallback((id: string, status: TransactionStatus) => {
     setTransactions(prev =>
@@ -245,8 +252,8 @@ export default function App() {
         handleNag(transactionToNag);
       }
     };
-    const intervalId = window.setInterval(tick, 5000); 
-    return () => window.clearInterval(intervalId);
+    const intervalId = setInterval(tick, 5000); 
+    return () => clearInterval(intervalId);
   }, [transactions, isLoading, callState.isActive, aiTone]);
 
 
@@ -526,9 +533,7 @@ export default function App() {
       return { ...t, status: newStatus, nagCount: newNagCount, nextNagTimestamp: newTimestamp };
     }));
     
-    if (callState.audioUrl) {
-      URL.revokeObjectURL(callState.audioUrl);
-    }
+    // No need for URL.revokeObjectURL
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
   }, [callState]);
   
@@ -538,11 +543,26 @@ export default function App() {
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
   
   const handleClearHistory = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete all transaction history?')) {
-      setTransactions(getSampleTransactions());
-      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
-      closeSettingsModal();
-    }
+    Alert.alert(
+      'Clear History',
+      'Are you sure you want to delete all transaction history?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setTransactions(getSampleTransactions());
+            try {
+              await AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+            } catch (error) {
+              console.error("Error clearing history from AsyncStorage", error);
+            }
+            closeSettingsModal();
+          },
+        },
+      ]
+    );
   }, [closeSettingsModal]);
 
 
@@ -567,127 +587,109 @@ export default function App() {
 
   // --- Render ---
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col">
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
       <Header 
         onAddPurchase={openAddPurchaseModal} 
         onScanReceipt={openScannerModal}
         onOpenSettings={openSettingsModal}
        />
-      <main className="container mx-auto p-4 md:p-6 flex-grow">
-        
-        {/* Onboarding Modal - Show if no user profile exists */}
-        {!userProfile && (
-            <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
-        )}
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.mainContainer}>
+          
+          {/* Onboarding Modal - Show if no user profile exists */}
+          {!userProfile && (
+              <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
+          )}
 
-        {isLoading && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-purple-500 mx-auto"></div>
-              <p className="text-lg mt-4 font-semibold">{loadingMessage}</p>
-            </div>
-          </div>
-        )}
+          {isLoading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#A78BFA" />
+              <Text style={styles.loadingMessage}>{loadingMessage}</Text>
+            </View>
+          )}
 
-        {error && (
-            <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg relative mb-4" role="alert">
-                <strong className="font-bold">Error: </strong>
-                <span className="block sm:inline">{error}</span>
-            </div>
-        )}
+          {error && (
+              <View style={styles.errorContainer}>
+                  <Text style={styles.errorTitle}>Error: </Text>
+                  <Text style={styles.errorMessage}>{error}</Text>
+              </View>
+          )}
 
-        {/* Tab Navigation */}
-        <div className="mb-6 overflow-x-auto">
-          <div className="border-b border-gray-700">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-              <button
-                onClick={() => setActiveTab('recent')}
-                className={`${
-                  activeTab === 'recent'
-                    ? 'border-purple-500 text-purple-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}
-              >
-                Journal (Recent & Urges)
-              </button>
-              <button
-                onClick={() => setActiveTab('wins')}
-                className={`${
-                  activeTab === 'wins'
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Returns
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabNav}>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('recent')}
+                  style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
+                >
+                  <Text style={[styles.tabText, activeTab === 'recent' && styles.tabTextActive]}>Journal (Recent & Urges)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('wins')}
+                  style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
+                >
+                  <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
+                    Returns
+                    {returnedTransactions.length > 0 && (
+                      <View style={styles.badgeContainer}>
+                        <Text style={styles.badgeText}>{returnedTransactions.length}</Text>
+                      </View>
+                    )}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                   onPress={() => setActiveTab('shameful')}
+                   style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
+                >
+                  <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
+                    Shame
+                    {shamefulTransactions.length > 0 && (
+                      <View style={styles.badgeContainerShame}>
+                        <Text style={styles.badgeText}>{shamefulTransactions.length}</Text>
+                      </View>
+                    )}
+                  </Text>
+                </TouchableOpacity>
+                 <TouchableOpacity
+                   onPress={() => setActiveTab('leaderboard')}
+                   style={[styles.tabButton, activeTab === 'leaderboard' && styles.tabButtonActiveLeaderboard]}
+                >
+                  <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>
+                    Leaderboard
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('learn')}
+                  style={[styles.tabButton, activeTab === 'learn' && styles.tabButtonActiveLearn]}
+                >
+                  <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>
+                    Learn
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+          </View>
+
+          {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
+          {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
+          {activeTab === 'wins' && (
+            <View>
+              <View style={styles.totalSavedCard}>
+                <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
+                <Text style={styles.totalSavedAmount}>
+                  ${totalSaved.toFixed(2)}
+                </Text>
                 {returnedTransactions.length > 0 && (
-                  <span className="ml-2 bg-blue-800 text-blue-200 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {returnedTransactions.length}
-                  </span>
+                  <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
                 )}
-              </button>
-              <button
-                 onClick={() => setActiveTab('shameful')}
-                 className={`${
-                   activeTab === 'shameful'
-                     ? 'border-red-500 text-red-400'
-                     : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                 } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Shame
-                {shamefulTransactions.length > 0 && (
-                  <span className="ml-2 bg-red-800 text-red-200 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {shamefulTransactions.length}
-                  </span>
-                )}
-              </button>
-               <button
-                 onClick={() => setActiveTab('leaderboard')}
-                 className={`${
-                   activeTab === 'leaderboard'
-                     ? 'border-yellow-500 text-yellow-400'
-                     : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                 } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Leaderboard
-              </button>
-              <button
-                onClick={() => setActiveTab('learn')}
-                className={`${
-                  activeTab === 'learn'
-                    ? 'border-green-500 text-green-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Learn
-              </button>
-            </nav>
-          </div>
-        </div>
-
-        {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
-        {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
-        {activeTab === 'wins' && (
-          <div>
-            <div className="bg-gray-800/50 rounded-lg shadow-xl p-6 mb-6 text-center">
-              <h3 className="text-lg font-semibold text-gray-300">Total Money Saved</h3>
-              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mt-2">
-                ${totalSaved.toFixed(2)}
-              </p>
-              {returnedTransactions.length > 0 && (
-                <p className="text-sm text-gray-400 mt-1">from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</p>
-              )}
-            </div>
-            <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
-          </div>
-        )}
-        {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
-        {activeTab === 'learn' && <FinancialLiteracy />}
-      </main>
-
-      <footer className="w-full py-6 text-center border-t border-gray-800 mt-auto bg-gray-900">
-        <p className="text-gray-500 text-sm">Returnley Web Preview</p>
-        <p className="text-gray-600 text-xs mt-1">Coming soon to Android</p>
-      </footer>
+              </View>
+              <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
+            </View>
+          )}
+          {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
+          {activeTab === 'learn' && <FinancialLiteracy />}
+        </View>
+      </ScrollView>
 
       {isScannerOpen && (
         <ReceiptScannerModal
@@ -724,6 +726,148 @@ export default function App() {
           onResolve={handleCallResolve}
         />
       )}
-    </div>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#111827', // bg-gray-900
+  },
+  scrollView: {
+    flex: 1,
+  },
+  mainContainer: {
+    padding: 16, // p-4 md:p-6
+    flex: 1,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  loadingMessage: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(127, 29, 29, 0.4)', // bg-red-900
+    borderColor: '#DC2626', // border-red-700
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorTitle: {
+    color: '#FECACA', // text-red-200
+    fontWeight: 'bold',
+  },
+  errorMessage: {
+    color: '#FECACA',
+  },
+  tabContainer: {
+    marginBottom: 24, // mb-6
+  },
+  tabNav: {
+    borderBottomWidth: 1,
+    borderColor: '#374151', // border-gray-700
+    // flex space-x-6 (marginRight on buttons)
+  },
+  tabButton: {
+    paddingVertical: 12, // py-3
+    paddingHorizontal: 4, // px-1
+    borderBottomWidth: 2, // border-b-2
+    borderColor: 'transparent',
+    marginRight: 24, // space-x-6
+  },
+  tabButtonActive: {
+    borderColor: '#A78BFA', // border-purple-500
+  },
+  tabButtonActiveWins: {
+    borderColor: '#60A5FA', // border-blue-500
+  },
+  tabButtonActiveShame: {
+    borderColor: '#F87171', // border-red-500
+  },
+  tabButtonActiveLeaderboard: {
+    borderColor: '#FBBF24', // border-yellow-500
+  },
+  tabButtonActiveLearn: {
+    borderColor: '#34D399', // border-green-500
+  },
+  tabText: {
+    fontSize: 14, // text-sm
+    fontWeight: '500', // font-medium
+    color: '#9CA3AF', // text-gray-400
+  },
+  tabTextActive: {
+    color: '#A78BFA', // text-purple-400
+  },
+  tabTextActiveWins: {
+    color: '#60A5FA', // text-blue-400
+  },
+  tabTextActiveShame: {
+    color: '#F87171', // text-red-400
+  },
+  tabTextActiveLeaderboard: {
+    color: '#FBBF24', // text-yellow-400
+  },
+  tabTextActiveLearn: {
+    color: '#34D399', // text-green-400
+  },
+  badgeContainer: {
+    marginLeft: 8, // ml-2
+    backgroundColor: '#1E40AF', // bg-blue-800
+    width: 20, // w-5
+    height: 20, // h-5
+    borderRadius: 10, // rounded-full
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeContainerShame: {
+    marginLeft: 8,
+    backgroundColor: '#991B1B', // bg-red-800
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#DBEAFE', // text-blue-200
+    fontSize: 10, // text-xs
+    fontWeight: 'bold', // font-bold
+  },
+  totalSavedCard: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    padding: 24, // p-6
+    marginBottom: 24, // mb-6
+    alignItems: 'center', // text-center
+  },
+  totalSavedTitle: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: '#D1D5DB', // text-gray-300
+  },
+  totalSavedAmount: {
+    fontSize: 36, // text-4xl
+    fontWeight: 'bold', // font-bold
+    // text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 (approximated with a solid color)
+    color: '#34D399', // green-400
+    marginTop: 8, // mt-2
+  },
+  totalSavedSubtitle: {
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+    marginTop: 4, // mt-1
+  },
+});

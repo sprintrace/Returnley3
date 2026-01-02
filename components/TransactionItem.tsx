@@ -1,6 +1,7 @@
-
 import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, Alert } from 'react-native';
 import { Transaction, TransactionStatus } from '../types';
+import { Ionicons } from '@expo/vector-icons';
 
 /**
  * Props for the TransactionItem component.
@@ -15,15 +16,45 @@ interface TransactionItemProps {
 }
 
 /**
- * A mapping of transaction statuses to their corresponding Tailwind CSS classes and icon.
+ * A mapping of transaction statuses to their corresponding React Native styles and icon.
  */
-const statusStyles: { [key in TransactionStatus]: { bg: string; text: string; border: string; icon: string } } = {
-  [TransactionStatus.Approved]: { bg: 'bg-green-900/50', text: 'text-green-300', border: 'border-green-700', icon: '✓' },
-  [TransactionStatus.Flagged]: { bg: 'bg-yellow-900/50', text: 'text-yellow-300', border: 'border-yellow-700', icon: '!' },
-  [TransactionStatus.Returned]: { bg: 'bg-blue-900/50', text: 'text-blue-300', border: 'border-blue-700', icon: '⮌' },
-  [TransactionStatus.Pending]: { bg: 'bg-gray-700/50', text: 'text-gray-300', border: 'border-gray-600', icon: '…' },
-  [TransactionStatus.Kept]: { bg: 'bg-red-900/50', text: 'text-red-300', border: 'border-red-700', icon: '✕' },
-  [TransactionStatus.Urge]: { bg: 'bg-indigo-900/50', text: 'text-indigo-300', border: 'border-indigo-500', icon: '⚡' },
+const statusStyles: { [key in TransactionStatus]: { bg: object; text: object; border: object; iconName: string } } = {
+  [TransactionStatus.Approved]: {
+    bg: { backgroundColor: 'rgba(4, 120, 87, 0.5)' }, // bg-green-900/50
+    text: { color: '#6EE7B7' }, // text-green-300
+    border: { borderColor: '#047857' }, // border-green-700
+    iconName: 'checkmark-circle-outline'
+  },
+  [TransactionStatus.Flagged]: {
+    bg: { backgroundColor: 'rgba(146, 64, 14, 0.5)' }, // bg-yellow-900/50
+    text: { color: '#FCD34D' }, // text-yellow-300
+    border: { borderColor: '#B45309' }, // border-yellow-700
+    iconName: 'flag-outline'
+  },
+  [TransactionStatus.Returned]: {
+    bg: { backgroundColor: 'rgba(29, 78, 216, 0.5)' }, // bg-blue-900/50
+    text: { color: '#93C5FD' }, // text-blue-300
+    border: { borderColor: '#1D4ED8' }, // border-blue-700
+    iconName: 'arrow-undo-outline'
+  },
+  [TransactionStatus.Pending]: {
+    bg: { backgroundColor: 'rgba(55, 65, 81, 0.5)' }, // bg-gray-700/50
+    text: { color: '#D1D5DB' }, // text-gray-300
+    border: { borderColor: '#4B5563' }, // border-gray-600
+    iconName: 'hourglass-outline'
+  },
+  [TransactionStatus.Kept]: {
+    bg: { backgroundColor: 'rgba(185, 28, 28, 0.5)' }, // bg-red-900/50
+    text: { color: '#F87171' }, // text-red-300
+    border: { borderColor: '#DC2626' }, // border-red-700
+    iconName: 'close-circle-outline'
+  },
+  [TransactionStatus.Urge]: {
+    bg: { backgroundColor: 'rgba(79, 70, 229, 0.5)' }, // bg-indigo-900/50
+    text: { color: '#A5B4FC' }, // text-indigo-300
+    border: { borderColor: '#6366F1' }, // border-indigo-500
+    iconName: 'flash-outline'
+  },
 };
 
 /**
@@ -31,7 +62,7 @@ const statusStyles: { [key in TransactionStatus]: { bg: string; text: string; bo
  */
 export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, onQuickAction, onStatusToggle }) => {
   // Get the appropriate styles based on the transaction's current status.
-  const styles = statusStyles[transaction.status];
+  const currentStyles = statusStyles[transaction.status];
   
   // A boolean to determine if the item is currently in the "nag cycle".
   const isBeingNagged = transaction.nagCount > 0 && transaction.status === TransactionStatus.Flagged;
@@ -47,120 +78,326 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
   // Determines if the status toggle switch should be shown (for "Kept" or "Returned" items).
   const canToggleStatus = onStatusToggle && (transaction.status === TransactionStatus.Kept || transaction.status === TransactionStatus.Returned);
 
+  const handleShowError = () => {
+    if (transaction.error) {
+      Alert.alert('Transaction Error', transaction.error);
+    }
+  };
+
   return (
-    <li className={`relative flex flex-col p-3 rounded-lg border-l-4 ${styles.bg} ${styles.border} transition-all duration-300 hover:bg-gray-700/50`}>
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center flex-grow min-w-0">
-          <div className={`mr-4 text-xl font-bold ${styles.text}`}>{styles.icon}</div>
-          <div className="min-w-0">
-            <p className="font-semibold text-white truncate">{transaction.item}</p>
-            <div className="flex flex-wrap items-center gap-x-2 text-sm text-gray-400">
-              <span>{transaction.category} - {transaction.date}</span>
+    <View style={[itemStyles.listItem, currentStyles.bg, currentStyles.border]}>
+      <View style={itemStyles.contentWrapper}>
+        <View style={itemStyles.mainInfo}>
+          <View style={itemStyles.iconContainer}>
+            <Ionicons name={currentStyles.iconName} size={24} color={currentStyles.text.color} />
+          </View>
+          <View style={itemStyles.textInfo}>
+            <Text style={itemStyles.itemText}>{transaction.item}</Text>
+            <View style={itemStyles.categoryDateContainer}>
+              <Text style={itemStyles.categoryDateText}>{transaction.category} - {transaction.date}</Text>
               {!transaction.isReturnable && transaction.status !== TransactionStatus.Urge && (
-                <span className="px-2 py-0.5 bg-gray-600 text-gray-200 text-xs font-semibold rounded-full">
-                  Final Sale
-                </span>
+                <View style={itemStyles.finalSaleBadge}>
+                  <Text style={itemStyles.finalSaleBadgeText}>Final Sale</Text>
+                </View>
               )}
               {transaction.status === TransactionStatus.Urge && (
-                <span className="px-2 py-0.5 bg-indigo-600 text-white text-xs font-semibold rounded-full animate-pulse">
-                  24h Cooldown
-                </span>
+                <View style={itemStyles.cooldownBadge}>
+                  <Text style={itemStyles.cooldownBadgeText}>24h Cooldown</Text>
+                </View>
               )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center ml-4 flex-shrink-0">
-          <div className="text-right">
-             <p className="font-bold text-lg text-white">${transaction.amount.toFixed(2)}</p>
-             
-             {/* Conditionally render action buttons or status text */}
-             {canManuallyAct ? (
-                <div className="flex items-center justify-end space-x-2 mt-1">
-                   {/* Specific Buttons for Urges */}
-                   {transaction.status === TransactionStatus.Urge ? (
-                        <>
-                             <button 
-                                onClick={() => onQuickAction(transaction.id, 'buy')}
-                                className="px-3 py-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm transition-colors"
-                                title="I succumbed to the urge and bought it"
-                            >Bought It</button>
-                        </>
-                   ) : (
-                        /* Standard Buttons for Flagged/Approved */
-                       <>
-                        <button 
-                            onClick={() => onQuickAction(transaction.id, 'return')}
-                            className="px-2 py-1 text-xs font-semibold text-blue-200 bg-blue-600/50 hover:bg-blue-600/80 rounded-md"
-                        >Return</button>
-                        {transaction.status === TransactionStatus.Flagged && (
-                            <button 
-                            onClick={() => onQuickAction(transaction.id, 'keep')}
-                            className="px-2 py-1 text-xs font-semibold text-red-200 bg-red-600/50 hover:bg-red-600/80 rounded-md"
-                            >Keep</button>
-                        )}
-                       </>
-                   )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-end space-x-2">
-                  {/* Visual indicator for items in the nag cycle */}
-                  {isBeingNagged && (
-                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="This item is under review"></div>
-                  )}
-                  {/* Error icon with a tooltip for per-transaction errors */}
-                  {transaction.error && (
-                      <div className="relative group">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          <div className="absolute bottom-full mb-2 w-max max-w-xs p-2 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                              {transaction.error}
-                          </div>
-                      </div>
-                  )}
-                  
-                  {/* Render the toggle switch for Kept/Returned items */}
-                  {canToggleStatus ? (
-                     <div className="flex items-center space-x-2 mt-1">
-                        <span className={`text-xs font-medium ${styles.text}`}>{transaction.status}</span>
-                        <button
-                          onClick={() => onStatusToggle(transaction.id)}
-                          className={`relative inline-flex flex-shrink-0 h-5 w-9 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${
-                              transaction.status === TransactionStatus.Returned 
-                                  ? 'bg-blue-600 focus:ring-blue-500' 
-                                  : 'bg-red-600 focus:ring-red-500'
-                          }`}
+            </View>
+          </View>
+        </View>
+        <View style={itemStyles.amountAndActions}>
+          <Text style={itemStyles.amountText}>${transaction.amount.toFixed(2)}</Text>
+          
+          {/* Conditionally render action buttons or status text */}
+          {canManuallyAct ? (
+            <View style={itemStyles.actionButtonsContainer}>
+                {transaction.status === TransactionStatus.Urge ? (
+                    <>
+                        <TouchableOpacity 
+                            onPress={() => onQuickAction && onQuickAction(transaction.id, 'buy')}
+                            style={itemStyles.buyButton}
                         >
-                          <span className={`inline-block w-4 h-4 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                              transaction.status === TransactionStatus.Returned ? 'translate-x-4' : 'translate-x-0'
-                          }`}/>
-                        </button>
-                      </div>
-                  ) : (
-                    <p className={`text-sm font-medium ${styles.text}`}>{transaction.status}</p>
-                  )}
-                </div>
+                            <Text style={itemStyles.buyButtonText}>Bought It</Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <>
+                        <TouchableOpacity 
+                            onPress={() => onQuickAction && onQuickAction(transaction.id, 'return')}
+                            style={itemStyles.returnButton}
+                        >
+                            <Text style={itemStyles.returnButtonText}>Return</Text>
+                        </TouchableOpacity>
+                        {transaction.status === TransactionStatus.Flagged && (
+                            <TouchableOpacity 
+                                onPress={() => onQuickAction && onQuickAction(transaction.id, 'keep')}
+                                style={itemStyles.keepButton}
+                            >
+                                <Text style={itemStyles.keepButtonText}>Keep</Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                )}
+            </View>
+          ) : (
+            <View style={itemStyles.statusInfoContainer}>
+              {/* Visual indicator for items in the nag cycle */}
+              {isBeingNagged && (
+                <View style={itemStyles.naggedIndicator} />
               )}
-          </div>
-        </div>
-      </div>
+              {/* Error icon with a tooltip for per-transaction errors */}
+              {transaction.error && (
+                  <TouchableOpacity onPress={handleShowError}>
+                      <Ionicons name="alert-circle-outline" size={20} color="#F87171" />
+                  </TouchableOpacity>
+              )}
+              
+              {/* Render the toggle switch for Kept/Returned items */}
+              {canToggleStatus ? (
+                 <View style={itemStyles.statusToggleContainer}>
+                    <Text style={[itemStyles.statusToggleText, currentStyles.text]}>{transaction.status}</Text>
+                    <Switch
+                      onValueChange={() => onStatusToggle && onStatusToggle(transaction.id)}
+                      value={transaction.status === TransactionStatus.Returned}
+                      trackColor={{ false: '#DC2626', true: '#1D4ED8' }} // red-600 and blue-600
+                      thumbColor={transaction.status === TransactionStatus.Returned ? '#93C5FD' : '#F87171'} // blue-300 and red-300
+                      style={itemStyles.statusToggleSwitch}
+                    />
+                  </View>
+              ) : (
+                <Text style={[itemStyles.statusText, currentStyles.text]}>{transaction.status}</Text>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
       
       {/* Footer info: Emotion and Hot Take */}
       {(transaction.emotionalContext || transaction.hotTake) && (
-        <div className="mt-2 pt-2 border-t border-gray-700/50 w-full text-sm">
+        <View style={itemStyles.footerInfoContainer}>
             {transaction.emotionalContext && transaction.emotionalContext !== 'Neutral / Normal' && (
-                <div className="flex items-center space-x-2 text-gray-400 mb-1">
-                    <span className="text-xs uppercase font-bold tracking-wider">Feeling:</span>
-                    <span className="text-purple-300">{transaction.emotionalContext}</span>
-                </div>
+                <View style={itemStyles.emotionalContextContainer}>
+                    <Text style={itemStyles.emotionalContextLabel}>Feeling:</Text>
+                    <Text style={itemStyles.emotionalContextText}>{transaction.emotionalContext}</Text>
+                </View>
             )}
             {transaction.hotTake && (
-                <div className="bg-indigo-900/30 p-2 rounded text-indigo-200 italic border-l-2 border-indigo-500">
-                    "{transaction.hotTake}"
-                </div>
+                <View style={itemStyles.hotTakeContainer}>
+                    <Text style={itemStyles.hotTakeText}>"{transaction.hotTake}"</Text>
+                </View>
             )}
-        </div>
+        </View>
       )}
-    </li>
+    </View>
   );
+});
+
+const itemStyles = StyleSheet.create({
+  listItem: {
+    flexDirection: 'column', // flex flex-col
+    padding: 12, // p-3
+    borderRadius: 8, // rounded-lg
+    borderLeftWidth: 4, // border-l-4
+    marginBottom: 8, // simulating margin for list items
+    transitionDuration: 300, // transition-all duration-300 (not directly translatable)
+    // hover:bg-gray-700/50 (handled by TouchableOpacity feedback if item itself was Touchable)
+  },
+  contentWrapper: {
+    flexDirection: 'row', // flex
+    alignItems: 'center', // items-center
+    justifyContent: 'space-between', // justify-between
+    width: '100%', // w-full
+  },
+  mainInfo: {
+    flexDirection: 'row', // flex
+    alignItems: 'center', // items-center
+    flexGrow: 1, // flex-grow
+    minWidth: 0, // min-w-0
+  },
+  iconContainer: {
+    marginRight: 16, // mr-4
+    width: 24, // Assuming icon takes up 24px space
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textInfo: {
+    flexShrink: 1, // min-w-0
+  },
+  itemText: {
+    fontWeight: 'bold', // font-semibold
+    color: 'white', // text-white
+    flexShrink: 1,
+  },
+  categoryDateContainer: {
+    flexDirection: 'row', // flex
+    flexWrap: 'wrap', // flex-wrap
+    alignItems: 'center', // items-center
+    // gap-x-2 (marginRight on items)
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+  },
+  categoryDateText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginRight: 8, // gap-x-2
+  },
+  finalSaleBadge: {
+    paddingHorizontal: 8, // px-2
+    paddingVertical: 2, // py-0.5
+    backgroundColor: '#4B5563', // bg-gray-600
+    borderRadius: 9999, // rounded-full
+    marginRight: 8,
+    marginTop: 4,
+  },
+  finalSaleBadgeText: {
+    color: '#E5E7EB', // text-gray-200
+    fontSize: 10, // text-xs
+    fontWeight: 'bold', // font-semibold
+  },
+  cooldownBadge: {
+    paddingHorizontal: 8, // px-2
+    paddingVertical: 2, // py-0.5
+    backgroundColor: '#4F46E5', // bg-indigo-600
+    borderRadius: 9999, // rounded-full
+    // animate-pulse (will need Animated API if desired)
+    marginRight: 8,
+    marginTop: 4,
+  },
+  cooldownBadgeText: {
+    color: 'white', // text-white
+    fontSize: 10, // text-xs
+    fontWeight: 'bold', // font-semibold
+  },
+  amountAndActions: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    marginLeft: 16, // ml-4
+    flexShrink: 0, // flex-shrink-0
+  },
+  amountText: {
+    fontWeight: 'bold', // font-bold
+    fontSize: 18, // text-lg
+    color: 'white', // text-white
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end', // justify-end
+    // space-x-2
+    marginTop: 4, // mt-1
+  },
+  buyButton: {
+    paddingHorizontal: 12, // px-3
+    paddingVertical: 4, // py-1
+    fontSize: 12, // text-xs
+    fontWeight: 'bold', // font-bold
+    backgroundColor: '#4F46E5', // bg-indigo-600
+    borderRadius: 6, // rounded-md
+    shadowColor: '#000', // shadow-sm
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+    marginLeft: 8, // space-x-2
+  },
+  buyButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  returnButton: {
+    paddingHorizontal: 8, // px-2
+    paddingVertical: 4, // py-1
+    backgroundColor: 'rgba(29, 78, 216, 0.5)', // bg-blue-600/50
+    borderRadius: 6, // rounded-md
+    // hover:bg-blue-600/80
+  },
+  returnButtonText: {
+    fontSize: 12, // text-xs
+    fontWeight: '600', // font-semibold
+    color: '#DBEAFE', // text-blue-200
+  },
+  keepButton: {
+    paddingHorizontal: 8, // px-2
+    paddingVertical: 4, // py-1
+    backgroundColor: 'rgba(185, 28, 28, 0.5)', // bg-red-600/50
+    borderRadius: 6, // rounded-md
+    // hover:bg-red-600/80
+    marginLeft: 8, // space-x-2
+  },
+  keepButtonText: {
+    fontSize: 12, // text-xs
+    fontWeight: '600', // font-semibold
+    color: '#FECACA', // text-red-200
+  },
+  statusInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end', // justify-end
+    // space-x-2
+  },
+  naggedIndicator: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#EF4444', // bg-red-500
+    borderRadius: 4, // rounded-full
+    // animate-pulse (will need Animated API)
+    marginRight: 8, // space-x-2
+  },
+  statusToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4, // mt-1
+  },
+  statusToggleText: {
+    fontSize: 12, // text-xs
+    fontWeight: '500', // font-medium
+    marginRight: 8, // space-x-2
+  },
+  statusToggleSwitch: {
+    // Styling handled by Switch props directly
+  },
+  statusText: {
+    fontSize: 14, // text-sm
+    fontWeight: '500', // font-medium
+  },
+  footerInfoContainer: {
+    marginTop: 8, // mt-2
+    paddingTop: 8, // pt-2
+    borderTopWidth: 1, // border-t
+    borderColor: 'rgba(55, 65, 81, 0.5)', // border-gray-700/50
+    width: '100%', // w-full
+  },
+  emotionalContextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // space-x-2
+    color: '#9CA3AF', // text-gray-400
+    marginBottom: 4, // mb-1
+  },
+  emotionalContextLabel: {
+    fontSize: 10, // text-xs
+    textTransform: 'uppercase', // uppercase
+    fontWeight: 'bold', // font-bold
+    letterSpacing: 0.5, // tracking-wider
+    color: '#9CA3AF',
+    marginRight: 8,
+  },
+  emotionalContextText: {
+    color: '#D8B4FE', // text-purple-300
+  },
+  hotTakeContainer: {
+    backgroundColor: 'rgba(79, 70, 229, 0.3)', // bg-indigo-900/30
+    padding: 8, // p-2
+    borderRadius: 4, // rounded
+    fontStyle: 'italic', // italic
+    borderLeftWidth: 2, // border-l-2
+    borderColor: '#6366F1', // border-indigo-500
+  },
+  hotTakeText: {
+    color: '#BFDBFE', // text-indigo-200
+  },
 });

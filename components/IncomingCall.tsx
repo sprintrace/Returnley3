@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { Transaction, PurchaseAnalysis } from '../types';
-import { PhoneIcon } from './icons/PhoneIcon';
+import { Audio } from 'expo-av'; // Import Audio from expo-av
+import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for icons
 
 /**
  * Props for the IncomingCall component.
@@ -10,7 +12,7 @@ interface IncomingCallProps {
   transaction: Transaction;
   /** The AI analysis of the transaction. */
   analysis: PurchaseAnalysis;
-  /** A blob URL for the audio to be played. */
+  /** A URI for the audio to be played (from expo-file-system). */
   audioUrl: string;
   /** Callback function to resolve the call with the user's decision. */
   onResolve: (decision: 'return' | 'keep') => void;
@@ -25,39 +27,78 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   const [callState, setCallState] = useState<'ringing' | 'answered' | 'ended'>('ringing');
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const soundObject = useRef<Audio.Sound | null>(null);
+
+  // Animated value for the ping effect
+  const pingAnim = useRef(new Animated.Value(0)).current;
+
+  // Animation for the ping effect
+  const startPingAnimation = () => {
+    pingAnim.setValue(0); // Reset animation
+    Animated.loop(
+      Animated.timing(pingAnim, {
+        toValue: 1,
+        duration: 2000, // 2 seconds
+        easing: Easing.bezier(0, 0, 0.2, 1),
+        useNativeDriver: true,
+      })
+    ).start();
+  };
 
   /**
    * Effect to manage the audio lifecycle.
    * It creates an Audio object, sets up event listeners, and cleans up when the component unmounts.
    */
   useEffect(() => {
-    if (audioUrl) {
-      // Create a new Audio object from the blob URL.
-      audioRef.current = new Audio(audioUrl);
-      // Set up event listeners to track playback state.
-      audioRef.current.onplay = () => setIsPlaying(true);
-      audioRef.current.onpause = () => setIsPlaying(false);
-      audioRef.current.onended = () => {
-        setIsPlaying(false);
-        setHasPlayed(true); // Mark that the audio has finished at least once.
-      };
-    }
+    const loadAudio = async () => {
+      if (audioUrl) {
+        try {
+          // Unload any existing sound before loading a new one
+          if (soundObject.current) {
+            await soundObject.current.unloadAsync();
+          }
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: audioUrl },
+            { shouldPlay: false }
+          );
+          soundObject.current = sound;
+
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded) {
+              setIsPlaying(status.isPlaying);
+              if (status.didJustFinish) {
+                setHasPlayed(true);
+                setIsPlaying(false);
+              }
+            }
+          });
+        } catch (error) {
+          console.error("Error loading audio:", error);
+        }
+      }
+    };
+
+    loadAudio();
+
     // Cleanup function: runs when the component unmounts.
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        // IMPORTANT: Revoke the object URL to prevent memory leaks in the browser.
-        URL.revokeObjectURL(audioRef.current.src);
-        audioRef.current = null;
+      if (soundObject.current) {
+        soundObject.current.unloadAsync();
+        soundObject.current = null;
       }
     };
   }, [audioUrl]); // This effect re-runs only if the audioUrl changes.
 
-  const handleAnswer = () => {
+  const handleAnswer = async () => {
     setCallState('answered');
-    // Attempt to play the audio. The catch block handles potential browser restrictions.
-    audioRef.current?.play().catch(e => console.error("Audio playback failed:", e));
+    if (soundObject.current) {
+      try {
+        await soundObject.current.playAsync();
+      } catch (error) {
+        console.error("Error playing audio:", error);
+      }
+    }
+    startPingAnimation(); // Start animation when answered
   };
 
   const handleDecline = () => {
@@ -65,14 +106,21 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
     onResolve('keep');
   };
   
-  const handleReplay = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0; // Rewind to the start
-      audioRef.current.play().catch(e => console.error("Audio replay failed:", e));
+  const handleReplay = async () => {
+    if (soundObject.current) {
+      try {
+        await soundObject.current.replayAsync();
+      } catch (error) {
+        console.error("Error replaying audio:", error);
+      }
     }
   };
 
-  const handleDecision = (decision: 'return' | 'keep') => {
+  const handleDecision = async (decision: 'return' | 'keep') => {
+    if (soundObject.current) {
+      await soundObject.current.stopAsync();
+      await soundObject.current.unloadAsync();
+    }
     setCallState('ended'); // Transition to ended state to ensure component unmounts cleanly.
     onResolve(decision);
   };
@@ -80,82 +128,273 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   // Don't render anything if the call has ended (the parent component will remove it).
   if (callState === 'ended') return null;
 
+  const pingStyle = {
+    opacity: pingAnim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [1, 0.5, 0],
+    }),
+    transform: [{
+      scale: pingAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 2],
+      }),
+    }],
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 text-center text-white p-4">
-      <div className="w-full max-w-sm">
-        {/* Ringing View */}
-        {callState === 'ringing' ? (
-          <>
-            <div className="animate-pulse mb-4">
-              <p className="text-lg text-gray-300">Incoming Call...</p>
-              <h2 className="text-4xl font-bold">Returnley</h2>
-            </div>
-            {/* Animated ringing icon */}
-            <div className="my-10 animate-ping-slow inline-block p-4 bg-red-500 rounded-full">
-                <PhoneIcon className="w-10 h-10 text-white" />
-            </div>
-            <p className="mb-8 text-gray-400">Regarding your purchase of <span className="font-semibold text-white">{transaction.item}</span>.</p>
-            <div className="flex justify-around">
-              <button onClick={handleDecline} className="flex flex-col items-center space-y-2 text-red-400 hover:text-red-300">
-                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center transform rotate-135">
-                  <PhoneIcon className="w-8 h-8"/>
-                </div>
-                <span>Decline</span>
-              </button>
-              <button onClick={handleAnswer} className="flex flex-col items-center space-y-2 text-green-400 hover:text-green-300">
-                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
-                  <PhoneIcon className="w-8 h-8"/>
-                </div>
-                <span>Answer</span>
-              </button>
-            </div>
-          </>
-        ) : (
-          /* Answered View */
-          <>
-            <h2 className="text-3xl font-bold mb-2">Call in Progress</h2>
-            <div className="flex items-center justify-center space-x-2 text-lg text-gray-300 mb-6">
-                <p>Returnley is speaking</p>
-                {/* Visual indicator for when audio is playing */}
-                {isPlaying && (
-                    <span className="flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                    </span>
-                )}
-            </div>
-            {/* Display the AI's reasoning text */}
-            <div className="bg-gray-800 rounded-lg p-4 text-left mb-8 min-h-[80px]">
-                <p className="font-semibold text-purple-300">Reasoning:</p>
-                <p className="text-gray-200">{analysis.reasoning}</p>
-            </div>
-            {/* Show replay button only after audio has finished playing once */}
-            {hasPlayed && !isPlaying && (
-                 <button onClick={handleReplay} className="mb-8 text-purple-400 hover:text-purple-300 font-semibold">
-                    Replay Message
-                </button>
-            )}
-            <p className="mb-8 text-gray-300">You've been advised about the <span className="font-semibold text-white">{transaction.item}</span>. What will you do?</p>
-            {/* Final decision buttons */}
-            <div className="flex justify-around">
-              <button onClick={() => handleDecision('keep')} className="py-3 px-6 bg-red-600 hover:bg-red-700 rounded-lg font-semibold">I'm Keeping It</button>
-              <button onClick={() => handleDecision('return')} className="py-3 px-6 bg-green-600 hover:bg-green-700 rounded-lg font-semibold">I Will Return It</button>
-            </div>
-          </>
-        )}
-      </div>
-       {/* Embedded CSS for custom animations */}
-       <style>{`
-        @keyframes ping-slow {
-          75%, 100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-        .animate-ping-slow {
-          animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-        }
-      `}</style>
-    </div>
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={true}
+      onRequestClose={handleDecline} // Android back button
+    >
+      <View style={styles.container}>
+        <View style={styles.contentWrapper}>
+          {/* Ringing View */}
+          {callState === 'ringing' ? (
+            <>
+              <View style={styles.ringingHeader}>
+                <Text style={styles.ringingIncomingCall}>Incoming Call...</Text>
+                <Text style={styles.ringingTitle}>Returnley</Text>
+              </View>
+              {/* Animated ringing icon */}
+              <View style={styles.animatedIconContainer}>
+                  <Animated.View style={[styles.pingCircle, pingStyle]} />
+                  <View style={styles.staticIcon}>
+                    <Ionicons name="call" size={40} color="white" />
+                  </View>
+              </View>
+              <Text style={styles.ringingSubtitle}>Regarding your purchase of <Text style={styles.ringingSubtitleHighlight}>{transaction.item}</Text>.</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity onPress={handleDecline} style={styles.declineButton}>
+                  <View style={[styles.callButtonIconContainer, styles.declineIconBg]}>
+                    <Ionicons name="call" size={32} color="white" style={styles.declineIconRotate} />
+                  </View>
+                  <Text style={styles.declineButtonText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleAnswer} style={styles.answerButton}>
+                  <View style={[styles.callButtonIconContainer, styles.answerIconBg]}>
+                    <Ionicons name="call" size={32} color="white" />
+                  </View>
+                  <Text style={styles.answerButtonText}>Answer</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            /* Answered View */
+            <>
+              <Text style={styles.answeredTitle}>Call in Progress</Text>
+              <View style={styles.speakingIndicator}>
+                  <Text style={styles.speakingText}>Returnley is speaking</Text>
+                  {/* Visual indicator for when audio is playing */}
+                  {isPlaying && (
+                      <Animated.View style={[styles.speakingPing, pingStyle]} />
+                  )}
+              </View>
+              {/* Display the AI's reasoning text */}
+              <View style={styles.reasoningBox}>
+                  <Text style={styles.reasoningHeader}>Reasoning:</Text>
+                  <Text style={styles.reasoningText}>{analysis.reasoning}</Text>
+              </View>
+              {/* Show replay button only after audio has finished playing once */}
+              {hasPlayed && !isPlaying && (
+                   <TouchableOpacity onPress={handleReplay} style={styles.replayButton}>
+                      <Text style={styles.replayButtonText}>Replay Message</Text>
+                  </TouchableOpacity>
+              )}
+              <Text style={styles.decisionPrompt}>You've been advised about the <Text style={styles.decisionPromptHighlight}>{transaction.item}</Text>. What will you do?</Text>
+              {/* Final decision buttons */}
+              <View style={styles.buttonRow}>
+                <TouchableOpacity onPress={() => handleDecision('keep')} style={[styles.decisionButton, styles.decisionButtonKeep]}>
+                    <Text style={styles.decisionButtonText}>I'm Keeping It</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDecision('return')} style={[styles.decisionButton, styles.decisionButtonReturn]}>
+                    <Text style={styles.decisionButtonText}>I Will Return It</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)', // bg-black bg-opacity-90
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16, // p-4
+  },
+  contentWrapper: {
+    width: '100%',
+    maxWidth: 384, // max-w-sm
+    alignItems: 'center', // text-center
+  },
+  ringingHeader: {
+    alignItems: 'center', // text-center
+    marginBottom: 16, // mb-4
+  },
+  ringingIncomingCall: {
+    fontSize: 18, // text-lg
+    color: '#D1D5DB', // text-gray-300
+  },
+  ringingTitle: {
+    fontSize: 36, // text-4xl
+    fontWeight: 'bold', // font-bold
+    color: 'white', // text-white
+  },
+  animatedIconContainer: {
+    marginVertical: 40, // my-10
+    // inline-block p-4 bg-red-500 rounded-full
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 64, // approximate size for the effect
+    height: 64, // approximate size for the effect
+    borderRadius: 32, // half of width/height for full circle
+    backgroundColor: '#EF4444', // bg-red-500
+    position: 'relative',
+  },
+  pingCircle: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+    backgroundColor: '#EF4444', // bg-red-500
+    // Animated styles applied directly via `pingStyle`
+  },
+  staticIcon: {
+    position: 'absolute',
+  },
+  ringingSubtitle: {
+    marginBottom: 32, // mb-8
+    color: '#9CA3AF', // text-gray-400
+    fontSize: 16,
+  },
+  ringingSubtitleHighlight: {
+    fontWeight: 'bold', // font-semibold
+    color: 'white', // text-white
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  declineButton: {
+    alignItems: 'center', // flex-col items-center
+    // space-y-2
+  },
+  callButtonIconContainer: {
+    width: 64, // w-16
+    height: 64, // h-16
+    borderRadius: 32, // rounded-full
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineIconBg: {
+    backgroundColor: '#DC2626', // bg-red-600
+  },
+  declineIconRotate: {
+    transform: [{ rotate: '135deg' }], // transform rotate-135
+  },
+  declineButtonText: {
+    marginTop: 8, // space-y-2
+    color: '#F87171', // text-red-400
+    fontSize: 16,
+    // hover:text-red-300 (handled by TouchableOpacity feedback)
+  },
+  answerButton: {
+    alignItems: 'center', // flex-col items-center
+    // space-y-2
+  },
+  answerIconBg: {
+    backgroundColor: '#10B981', // bg-green-600
+  },
+  answerButtonText: {
+    marginTop: 8, // space-y-2
+    color: '#4ADE80', // text-green-400
+    fontSize: 16,
+    // hover:text-green-300 (handled by TouchableOpacity feedback)
+  },
+  answeredTitle: {
+    fontSize: 28, // text-3xl
+    fontWeight: 'bold', // font-bold
+    marginBottom: 8, // mb-2
+    color: 'white',
+  },
+  speakingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // space-x-2
+    fontSize: 18, // text-lg
+    color: '#D1D5DB', // text-gray-300
+    marginBottom: 24, // mb-6
+  },
+  speakingText: {
+    color: '#D1D5DB',
+    marginRight: 8, // space-x-2
+  },
+  speakingPing: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#A78BFA', // bg-purple-500
+  },
+  reasoningBox: {
+    backgroundColor: '#1F2937', // bg-gray-800
+    borderRadius: 8, // rounded-lg
+    padding: 16, // p-4
+    textAlign: 'left', // text-left
+    marginBottom: 32, // mb-8
+    minHeight: 80, // min-h-[80px]
+    width: '100%',
+  },
+  reasoningHeader: {
+    fontWeight: 'bold', // font-semibold
+    color: '#C084FC', // text-purple-300
+    marginBottom: 4,
+  },
+  reasoningText: {
+    color: '#E5E7EB', // text-gray-200
+  },
+  replayButton: {
+    marginBottom: 32, // mb-8
+    // hover:text-purple-300 (handled by TouchableOpacity feedback)
+  },
+  replayButtonText: {
+    color: '#C084FC', // text-purple-400
+    fontWeight: 'bold', // font-semibold
+    fontSize: 16,
+  },
+  decisionPrompt: {
+    marginBottom: 32, // mb-8
+    color: '#D1D5DB', // text-gray-300
+    fontSize: 16,
+  },
+  decisionPromptHighlight: {
+    fontWeight: 'bold', // font-semibold
+    color: 'white', // text-white
+  },
+  decisionButton: {
+    paddingVertical: 12, // py-3
+    paddingHorizontal: 24, // px-6
+    borderRadius: 8, // rounded-lg
+    fontWeight: 'bold', // font-semibold
+  },
+  decisionButtonKeep: {
+    backgroundColor: '#DC2626', // bg-red-600
+    // hover:bg-red-700
+  },
+  decisionButtonReturn: {
+    backgroundColor: '#10B981', // bg-green-600
+    // hover:bg-green-700
+  },
+  decisionButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});

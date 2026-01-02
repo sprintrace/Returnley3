@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Transaction, TransactionStatus } from '../types';
 import { TransactionItem } from './TransactionItem';
 
@@ -11,7 +11,7 @@ interface TransactionListProps {
   transactions: Transaction[];
   /** The title to be displayed above the list. */
   title: string;
-  /** Optional callback for handling quick actions. */
+  /** Optional callback for handling quick actions like "Return", "Keep", or "Buy" (for urges). */
   onQuickAction?: (transactionId: string, decision: 'return' | 'keep' | 'buy') => void;
   /** Optional callback for handling the status toggle between "Kept" and "Returned". */
   onStatusToggle?: (transactionId:string) => void;
@@ -23,12 +23,12 @@ interface TransactionListProps {
  */
 export const TransactionList: React.FC<TransactionListProps> = React.memo(({ transactions, title, onQuickAction, onStatusToggle }) => {
   return (
-    <div className="bg-gray-800/50 rounded-lg shadow-xl p-4 md:p-6">
-      <h2 className="text-lg font-semibold mb-4 border-b border-gray-700 pb-2">{title}</h2>
+    <View style={styles.container}>
+      <Text style={styles.title}>{title}</Text>
       {transactions.length === 0 ? (
-        <p className="text-gray-400">No transactions in this category.</p>
+        <Text style={styles.noTransactionsText}>No transactions in this category.</Text>
       ) : (
-        <ul className="space-y-3">
+        <View style={styles.list}>
           {/* Map through the transactions and render a TransactionItem for each one */}
           {transactions.map(transaction => (
             <TransactionItem 
@@ -38,8 +38,37 @@ export const TransactionList: React.FC<TransactionListProps> = React.memo(({ tra
               onStatusToggle={onStatusToggle}
             />
           ))}
-        </ul>
+        </View>
       )}
-    </div>
+    </View>
   );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-xl
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    padding: 16, // p-4 md:p-6 (using p-4 for simplicity, responsive logic for md:p-6 would be more complex)
+    marginBottom: 16, // to simulate vertical spacing between sections if multiple lists
+  },
+  title: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    marginBottom: 16, // mb-4
+    borderBottomWidth: 1, // border-b
+    borderColor: '#374151', // border-gray-700
+    paddingBottom: 8, // pb-2
+    color: 'white', // Assuming default text color
+  },
+  noTransactionsText: {
+    color: '#9CA3AF', // text-gray-400
+  },
+  list: {
+    // space-y-3 handled by margin on TransactionItem
+  },
 });

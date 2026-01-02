@@ -2,84 +2,23 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { PurchaseAnalysis, UserProfile } from '../types';
 import { CATEGORIES } from "../lib/categories";
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import { Buffer } from 'buffer'; // Expo polyfills Buffer
+
+import Constants from 'expo-constants';
+
+
+const geminiApiKey = Constants.expoConfig?.extra?.geminiApiKey;
 
 // Ensure the API key is available.
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
+if (!geminiApiKey) {
+    throw new Error("geminiApiKey environment variable is not set in app.json extra field.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
 type AiTone = 'encouraging' | 'stern' | 'ruthless';
-
-// --- Audio Helper Functions ---
-
-/**
- * Decodes a base64 encoded string into a Uint8Array.
- * This is necessary because the Gemini API returns audio data in base64 format.
- * @param base64 The base64 encoded string.
- * @returns A Uint8Array containing the decoded binary data.
- */
-function decode(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-/**
- * Creates a playable WAV audio Blob from raw PCM data.
- * The Gemini TTS service returns raw 16-bit mono PCM audio at a 24kHz sample rate.
- * Browsers cannot play raw PCM directly, so we must wrap it in a WAV header.
- * @param pcmData The raw PCM audio data as a Uint8Array.
- * @returns A Blob object representing a complete .wav file.
- */
-function createWaveBlob(pcmData: Uint8Array): Blob {
-    const sampleRate = 24000;
-    const numChannels = 1;
-    const bitsPerSample = 16;
-    const dataSize = pcmData.length;
-
-    // The total buffer size is 44 bytes for the WAV header plus the size of the audio data.
-    const buffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(buffer);
-
-    const writeString = (view: DataView, offset: number, string: string) => {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    }
-
-    // RIFF chunk descriptor
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true); // file-size - 8
-    writeString(view, 8, 'WAVE');
-
-    // "fmt " sub-chunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // chunk-size
-    view.setUint16(20, 1, true);  // audio-format (1 for PCM)
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true); // byte rate
-    view.setUint16(32, numChannels * (bitsPerSample / 8), true); // block align
-    view.setUint16(34, bitsPerSample, true);
-
-    // "data" sub-chunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    // Write the raw PCM data after the header
-    for (let i = 0; i < dataSize; i++) {
-        view.setUint8(44 + i, pcmData[i]);
-    }
-
-    return new Blob([view], { type: 'audio/wav' });
-}
-
 
 // --- API Service Functions ---
 
@@ -207,7 +146,7 @@ const analyzePurchase = async (
 /**
  * Generates audio from a given text string using the Gemini TTS model.
  * @param text The text to be converted to speech.
- * @returns A Promise that resolves to a base64 encoded string of the audio data.
+ * @returns A Promise that resolves to a URI of the temporary audio file.
  */
 const generateCallAudio = async (text: string): Promise<string> => {
     const ttsModel = "gemini-2.5-flash-preview-tts";
@@ -229,7 +168,17 @@ const generateCallAudio = async (text: string): Promise<string> => {
     if (!base64Audio) {
         throw new Error("Failed to generate audio from TTS model.");
     }
-    return base64Audio;
+
+    // Decode base64 to binary
+    const audioBytes = Buffer.from(base64Audio, 'base64');
+    
+    // Save to a temporary file
+    const fileUri = FileSystem.cacheDirectory + 'call_audio_' + Date.now() + '.wav';
+    await FileSystem.writeAsStringAsync(fileUri, audioBytes.toString('base64'), {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    return fileUri;
 };
 
 /**
@@ -254,10 +203,7 @@ export const analyzePurchaseAndGenerateAudio = async (
     let audioUrl: string | null = null;
     // Only generate audio if it's unnecessary AND NOT an urge.
     if (!analysis.isNecessary && analysis.callScript && !isUrge) {
-        const base64Audio = await generateCallAudio(analysis.callScript);
-        const audioBytes = decode(base64Audio);
-        const audioBlob = createWaveBlob(audioBytes);
-        audioUrl = URL.createObjectURL(audioBlob);
+        audioUrl = await generateCallAudio(analysis.callScript);
     }
     
     return { analysis, audioUrl };
@@ -331,10 +277,7 @@ export const generateNagAudio = async (item: string, amount: number, category: s
     }
 
     // Generate audio for the newly created nag script.
-    const base64Audio = await generateCallAudio(nagScript);
-    const audioBytes = decode(base64Audio);
-    const audioBlob = createWaveBlob(audioBytes);
-    const audioUrl = URL.createObjectURL(audioBlob);
+    const audioUrl = await generateCallAudio(nagScript);
 
     return { nagScript, audioUrl };
 };
