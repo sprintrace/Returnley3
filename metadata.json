@@ -1,0 +1,7 @@
+{
+  "name": "Returnley",
+  "description": "Returnley helps users curb compulsive buying by having an AI analyze their purchases. If a purchase is deemed unnecessary, the AI will simulate a call to the user, urging them to return the item. Currently in Web Preview; coming soon as a native Android application.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
