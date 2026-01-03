@@ -63,28 +63,32 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               <Text style={styles.label}>
                 What is your biggest spending weakness?
               </Text>
-              <TextInput
-                required
-                value={weakness}
-                onChangeText={setWeakness}
-                style={styles.input}
-                placeholder="e.g., Late night snacks, Tech gadgets, Shoes"
-                placeholderTextColor="#9CA3AF"
-              />
+              <View style={styles.inputContainer}>
+                <TextInput
+                  required
+                  value={weakness}
+                  onChangeText={setWeakness}
+                  style={styles.input}
+                  placeholder="e.g., Late night snacks, Tech gadgets, Shoes"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
             </View>
 
             <View>
               <Text style={styles.label}>
                 What is your main financial goal right now?
               </Text>
-              <TextInput
-                required
-                value={goal}
-                onChangeText={setGoal}
-                style={styles.input}
-                placeholder="e.g., Save for a house, Pay off debt, Vacation"
-                placeholderTextColor="#9CA3AF"
-              />
+              <View style={styles.inputContainer}>
+                <TextInput
+                  required
+                  value={goal}
+                  onChangeText={setGoal}
+                  style={styles.input}
+                  placeholder="e.g., Save for a house, Pay off debt, Vacation"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
             </View>
 
             <TouchableOpacity
