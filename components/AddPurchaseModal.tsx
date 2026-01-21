@@ -212,12 +212,9 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                   itemStyle={styles.pickerItem}
                 >
                   <Picker.Item label="Select a category" value="" enabled={false} />
-                  {Object.entries(CATEGORIES).flatMap(([group, options]) => [
-                    <Picker.Item key={group} label={group} value={group} enabled={false} style={styles.pickerGroupLabel} />, // Optgroup label
-                    ...options.map(option => (
-                      <Picker.Item key={option} label={option} value={option} />
-                    ))
-                  ])}
+                  {Object.values(CATEGORIES).flat().map(option => (
+                    <Picker.Item key={option} label={option} value={option} />
+                  ))}
                 </Picker>
               </View>
             </View>

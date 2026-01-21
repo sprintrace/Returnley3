@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
@@ -588,7 +588,7 @@ export default function App() {
   // --- Render ---
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <Header 
         onAddPurchase={openAddPurchaseModal} 
         onScanReceipt={openScannerModal}
@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#111827', // bg-gray-900
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
   },
   scrollView: {
     flex: 1,

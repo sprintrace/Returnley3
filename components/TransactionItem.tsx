@@ -214,7 +214,7 @@ const itemStyles = StyleSheet.create({
   mainInfo: {
     flexDirection: 'row', // flex
     alignItems: 'center', // items-center
-    flexGrow: 1, // flex-grow
+    flex: 1, // flex-grow
     minWidth: 0, // min-w-0
   },
   iconContainer: {
@@ -224,7 +224,7 @@ const itemStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   textInfo: {
-    flexShrink: 1, // min-w-0
+    flex: 1, // min-w-0
   },
   itemText: {
     fontWeight: 'bold', // font-semibold
