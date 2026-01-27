@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CameraIcon } from './icons/CameraIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
@@ -12,6 +13,8 @@ interface HeaderProps {
   onScanReceipt: () => void;
   /** Function to call when the "Settings" icon is clicked. */
   onOpenSettings: () => void;
+  /** Function to call when the logo is clicked (Debug reset). */
+  onLogoClick: () => void;
 }
 
 /**
@@ -19,11 +22,15 @@ interface HeaderProps {
  * Displays the app title and primary action buttons.
  * This is a memoized component to prevent re-renders if props don't change.
  */
-export const Header: React.FC<HeaderProps> = React.memo(({ onAddPurchase, onScanReceipt, onOpenSettings }) => {
+export const Header: React.FC<HeaderProps> = React.memo(({ onAddPurchase, onScanReceipt, onOpenSettings, onLogoClick }) => {
   return (
     <header className="bg-gray-800 shadow-lg">
       <div className="container mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+        <h1 
+          onClick={onLogoClick}
+          className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 cursor-pointer hover:opacity-80 transition-opacity"
+          title="Debug: Click to reset to onboarding"
+        >
           Returnley
         </h1>
         <div className="flex items-center space-x-2">

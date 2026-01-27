@@ -10,14 +10,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
   const [income, setIncome] = useState('');
   const [weakness, setWeakness] = useState('');
   const [goal, setGoal] = useState('');
+  const [goalAmount, setGoalAmount] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (income && weakness && goal) {
+    if (income && weakness && goal && goalAmount) {
       onComplete({
         monthlyIncome: parseFloat(income),
         financialWeakness: weakness,
         savingsGoal: goal,
+        goalAmount: parseFloat(goalAmount),
       });
     }
   };
@@ -48,6 +50,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 onChange={(e) => setIncome(e.target.value)}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 pl-8 pr-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="3000"
+                min="0"
               />
             </div>
           </div>
@@ -66,18 +69,37 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              What is your main financial goal right now?
-            </label>
-            <input
-              type="text"
-              required
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 px-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="e.g., Save for a house, Pay off debt, Vacation"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Main Financial Goal
+              </label>
+              <input
+                type="text"
+                required
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 px-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="e.g., Vacation, Debt"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Target Amount
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                <input
+                  type="number"
+                  required
+                  value={goalAmount}
+                  onChange={(e) => setGoalAmount(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 pl-8 pr-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="5000"
+                  min="0"
+                />
+              </div>
+            </div>
           </div>
 
           <button

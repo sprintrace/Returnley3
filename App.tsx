@@ -11,6 +11,7 @@ import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { FinancialLiteracy } from './components/FinancialLiteracy';
 import { SettingsModal } from './components/SettingsModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { GoalProgress } from './components/GoalProgress';
 import { FAST_FOOD_KEYWORDS } from './lib/keywords';
 
 /**
@@ -252,6 +253,25 @@ export default function App() {
 
   // --- Event Handlers ---
   
+  const handleDebugReset = useCallback(() => {
+    // Instant reset for dev/debugging speed
+    // 1. Clear User Profile (Triggers Onboarding)
+    setUserProfile(null);
+    window.localStorage.removeItem(USER_PROFILE_KEY);
+    
+    // 2. Reset Transactions to Sample Data
+    setTransactions(getSampleTransactions());
+    window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    
+    // 3. Reset AI Tone
+    setAiTone('encouraging');
+    window.localStorage.removeItem(AI_TONE_KEY);
+
+    // 4. Reset View
+    setActiveTab('recent');
+    console.log("App reset to initial state.");
+  }, []);
+
   const isFastFoodPurchase = (item: string, category: string): boolean => {
     if (category === 'Fast Food') {
       return true;
@@ -532,6 +552,12 @@ export default function App() {
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
   }, [callState]);
   
+  const handleUpdateGoal = useCallback((name: string, amount: number) => {
+    if (userProfile) {
+      setUserProfile({ ...userProfile, savingsGoal: name, goalAmount: amount });
+    }
+  }, [userProfile]);
+  
   const openAddPurchaseModal = useCallback(() => setIsModalOpen(true), []);
   const openScannerModal = useCallback(() => setIsScannerOpen(true), []);
   const openSettingsModal = useCallback(() => setIsSettingsModalOpen(true), []);
@@ -551,7 +577,11 @@ export default function App() {
   const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept), [transactions]);
   // Includes pending, approved, flagged, and urges
   const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned), [transactions]);
+  
   const totalSaved = useMemo(() => returnedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
+  
+  // Calculate the amount allocated to the goal (40% of returns)
+  const goalSaved = useMemo(() => totalSaved * 0.40, [totalSaved]);
 
   const monthlySaved = useMemo(() => {
     const today = new Date();
@@ -572,6 +602,7 @@ export default function App() {
         onAddPurchase={openAddPurchaseModal} 
         onScanReceipt={openScannerModal}
         onOpenSettings={openSettingsModal}
+        onLogoClick={handleDebugReset}
        />
       <main className="container mx-auto p-4 md:p-6 flex-grow">
         
@@ -668,15 +699,13 @@ export default function App() {
         {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
         {activeTab === 'wins' && (
           <div>
-            <div className="bg-gray-800/50 rounded-lg shadow-xl p-6 mb-6 text-center">
-              <h3 className="text-lg font-semibold text-gray-300">Total Money Saved</h3>
-              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mt-2">
-                ${totalSaved.toFixed(2)}
-              </p>
-              {returnedTransactions.length > 0 && (
-                <p className="text-sm text-gray-400 mt-1">from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</p>
-              )}
-            </div>
+            <GoalProgress 
+               currentSaved={goalSaved}
+               totalReturned={totalSaved} 
+               goalName={userProfile?.savingsGoal || 'General Savings'} 
+               goalAmount={userProfile?.goalAmount || 1000}
+               onUpdateGoal={handleUpdateGoal}
+            />
             <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
           </div>
         )}
