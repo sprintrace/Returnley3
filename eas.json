@@ -1,0 +1,9 @@
+{
+    "build": {
+        "production": {
+            "env": {
+                "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
+            }
+        }
+    }
+}

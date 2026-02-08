@@ -13,7 +13,7 @@ const geminiApiKey = Constants.expoConfig?.extra?.geminiApiKey;
 
 // Ensure the API key is available.
 if (!geminiApiKey) {
-    throw new Error("geminiApiKey environment variable is not set in app.json extra field.");
+    throw new Error("geminiApiKey is not defined. Ensure EXPO_PUBLIC_GEMINI_API_KEY is set in app.config.ts or as an EAS Secret.");
 }
 
 const ai = new GoogleGenAI({ apiKey: geminiApiKey });
