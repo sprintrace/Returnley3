@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { Transaction, PurchaseAnalysis } from '../types';
-import { Audio } from 'expo-av'; // Import Audio from expo-av
+import { useAudioPlayer } from 'expo-audio'; // Use useAudioPlayer from expo-audio
 import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for icons
 
 /**
@@ -25,9 +25,10 @@ interface IncomingCallProps {
 export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysis, audioUrl, onResolve }) => {
   // Internal state machine for the call UI: 'ringing' -> 'answered' -> 'ended'
   const [callState, setCallState] = useState<'ringing' | 'answered' | 'ended'>('ringing');
-  const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
-  const soundObject = useRef<Audio.Sound | null>(null);
+
+  // Use the useAudioPlayer hook
+  const player = useAudioPlayer(audioUrl);
 
   // Animated value for the ping effect
   const pingAnim = useRef(new Animated.Value(0)).current;
@@ -45,58 +46,12 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
     ).start();
   };
 
-  /**
-   * Effect to manage the audio lifecycle.
-   * It creates an Audio object, sets up event listeners, and cleans up when the component unmounts.
-   */
-  useEffect(() => {
-    const loadAudio = async () => {
-      if (audioUrl) {
-        try {
-          // Unload any existing sound before loading a new one
-          if (soundObject.current) {
-            await soundObject.current.unloadAsync();
-          }
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: audioUrl },
-            { shouldPlay: false }
-          );
-          soundObject.current = sound;
-
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded) {
-              setIsPlaying(status.isPlaying);
-              if (status.didJustFinish) {
-                setHasPlayed(true);
-                setIsPlaying(false);
-              }
-            }
-          });
-        } catch (error) {
-          console.error("Error loading audio:", error);
-        }
-      }
-    };
-
-    loadAudio();
-
-    // Cleanup function: runs when the component unmounts.
-    return () => {
-      if (soundObject.current) {
-        soundObject.current.unloadAsync();
-        soundObject.current = null;
-      }
-    };
-  }, [audioUrl]); // This effect re-runs only if the audioUrl changes.
-
   const handleAnswer = async () => {
     setCallState('answered');
-    if (soundObject.current) {
-      try {
-        await soundObject.current.playAsync();
-      } catch (error) {
-        console.error("Error playing audio:", error);
-      }
+    try {
+      await player.play();
+    } catch (error) {
+      console.error("Error playing audio:", error);
     }
     startPingAnimation(); // Start animation when answered
   };
@@ -107,19 +62,20 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   };
   
   const handleReplay = async () => {
-    if (soundObject.current) {
-      try {
-        await soundObject.current.replayAsync();
-      } catch (error) {
-        console.error("Error replaying audio:", error);
-      }
+    try {
+      await player.seekTo(0);
+      await player.play();
+    } catch (error) {
+      console.error("Error replaying audio:", error);
     }
   };
 
   const handleDecision = async (decision: 'return' | 'keep') => {
-    if (soundObject.current) {
-      await soundObject.current.stopAsync();
-      await soundObject.current.unloadAsync();
+    try {
+      await player.pause();
+      // useAudioPlayer handles release automatically when component unmounts
+    } catch (error) {
+      console.error("Error stopping audio:", error);
     }
     setCallState('ended'); // Transition to ended state to ensure component unmounts cleanly.
     onResolve(decision);
@@ -187,7 +143,7 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
               <View style={styles.speakingIndicator}>
                   <Text style={styles.speakingText}>Returnley is speaking</Text>
                   {/* Visual indicator for when audio is playing */}
-                  {isPlaying && (
+                  {player.playing && (
                       <Animated.View style={[styles.speakingPing, pingStyle]} />
                   )}
               </View>
@@ -197,7 +153,7 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
                   <Text style={styles.reasoningText}>{analysis.reasoning}</Text>
               </View>
               {/* Show replay button only after audio has finished playing once */}
-              {hasPlayed && !isPlaying && (
+              {hasPlayed && !player.playing && (
                    <TouchableOpacity onPress={handleReplay} style={styles.replayButton}>
                       <Text style={styles.replayButtonText}>Replay Message</Text>
                   </TouchableOpacity>

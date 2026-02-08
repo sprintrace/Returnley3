@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { PurchaseAnalysis, UserProfile } from '../types';
 import { CATEGORIES } from "../lib/categories";
-import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer'; // Expo polyfills Buffer
 

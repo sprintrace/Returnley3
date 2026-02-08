@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
@@ -587,146 +588,148 @@ export default function App() {
 
   // --- Render ---
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <Header 
-        onAddPurchase={openAddPurchaseModal} 
-        onScanReceipt={openScannerModal}
-        onOpenSettings={openSettingsModal}
-       />
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.mainContainer}>
-          
-          {/* Onboarding Modal - Show if no user profile exists */}
-          {!userProfile && (
-              <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
-          )}
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <Header 
+          onAddPurchase={openAddPurchaseModal} 
+          onScanReceipt={openScannerModal}
+          onOpenSettings={openSettingsModal}
+        />
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.mainContainer}>
+            
+            {/* Onboarding Modal - Show if no user profile exists */}
+            {!userProfile && (
+                <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
+            )}
 
-          {isLoading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color="#A78BFA" />
-              <Text style={styles.loadingMessage}>{loadingMessage}</Text>
-            </View>
-          )}
-
-          {error && (
-              <View style={styles.errorContainer}>
-                  <Text style={styles.errorTitle}>Error: </Text>
-                  <Text style={styles.errorMessage}>{error}</Text>
+            {isLoading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#A78BFA" />
+                <Text style={styles.loadingMessage}>{loadingMessage}</Text>
               </View>
-          )}
+            )}
 
-          {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabNav}>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('recent')}
-                  style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
-                >
-                  <Text style={[styles.tabText, activeTab === 'recent' && styles.tabTextActive]}>Journal (Recent & Urges)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('wins')}
-                  style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
-                >
-                  <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
-                    Returns
-                    {returnedTransactions.length > 0 && (
-                      <View style={styles.badgeContainer}>
-                        <Text style={styles.badgeText}>{returnedTransactions.length}</Text>
-                      </View>
-                    )}
+            {error && (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorTitle}>Error: </Text>
+                    <Text style={styles.errorMessage}>{error}</Text>
+                </View>
+            )}
+
+            {/* Tab Navigation */}
+            <View style={styles.tabContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabNav}>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('recent')}
+                    style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'recent' && styles.tabTextActive]}>Journal (Recent & Urges)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('wins')}
+                    style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
+                      Returns
+                      {returnedTransactions.length > 0 && (
+                        <View style={styles.badgeContainer}>
+                          <Text style={styles.badgeText}>{returnedTransactions.length}</Text>
+                        </View>
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('shameful')}
+                    style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
+                      Shame
+                      {shamefulTransactions.length > 0 && (
+                        <View style={styles.badgeContainerShame}>
+                          <Text style={styles.badgeText}>{shamefulTransactions.length}</Text>
+                        </View>
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('leaderboard')}
+                    style={[styles.tabButton, activeTab === 'leaderboard' && styles.tabButtonActiveLeaderboard]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>
+                      Leaderboard
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('learn')}
+                    style={[styles.tabButton, activeTab === 'learn' && styles.tabButtonActiveLearn]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>
+                      Learn
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+            </View>
+
+            {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
+            {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
+            {activeTab === 'wins' && (
+              <View>
+                <View style={styles.totalSavedCard}>
+                  <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
+                  <Text style={styles.totalSavedAmount}>
+                    ${totalSaved.toFixed(2)}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                   onPress={() => setActiveTab('shameful')}
-                   style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
-                >
-                  <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
-                    Shame
-                    {shamefulTransactions.length > 0 && (
-                      <View style={styles.badgeContainerShame}>
-                        <Text style={styles.badgeText}>{shamefulTransactions.length}</Text>
-                      </View>
-                    )}
-                  </Text>
-                </TouchableOpacity>
-                 <TouchableOpacity
-                   onPress={() => setActiveTab('leaderboard')}
-                   style={[styles.tabButton, activeTab === 'leaderboard' && styles.tabButtonActiveLeaderboard]}
-                >
-                  <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>
-                    Leaderboard
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab('learn')}
-                  style={[styles.tabButton, activeTab === 'learn' && styles.tabButtonActiveLearn]}
-                >
-                  <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>
-                    Learn
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
+                  {returnedTransactions.length > 0 && (
+                    <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
+                  )}
+                </View>
+                <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
+              </View>
+            )}
+            {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
+            {activeTab === 'learn' && <FinancialLiteracy />}
           </View>
+        </ScrollView>
 
-          {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
-          {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
-          {activeTab === 'wins' && (
-            <View>
-              <View style={styles.totalSavedCard}>
-                <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
-                <Text style={styles.totalSavedAmount}>
-                  ${totalSaved.toFixed(2)}
-                </Text>
-                {returnedTransactions.length > 0 && (
-                  <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
-                )}
-              </View>
-              <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
-            </View>
-          )}
-          {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
-          {activeTab === 'learn' && <FinancialLiteracy />}
-        </View>
-      </ScrollView>
+        {isScannerOpen && (
+          <ReceiptScannerModal
+            onClose={() => setIsScannerOpen(false)}
+            onConfirm={handleReceiptScanConfirm}
+          />
+        )}
 
-      {isScannerOpen && (
-        <ReceiptScannerModal
-          onClose={() => setIsScannerOpen(false)}
-          onConfirm={handleReceiptScanConfirm}
-        />
-      )}
+        {isModalOpen && (
+          <AddPurchaseModal
+            onClose={() => {
+              setIsModalOpen(false);
+              setPrefilledData(null);
+            }}
+            onSubmit={handleAddPurchase}
+            initialData={prefilledData}
+          />
+        )}
+        
+        {isSettingsModalOpen && (
+          <SettingsModal
+            onClose={closeSettingsModal}
+            aiTone={aiTone}
+            onSetAiTone={setAiTone}
+            onClearHistory={handleClearHistory}
+          />
+        )}
 
-      {isModalOpen && (
-        <AddPurchaseModal
-          onClose={() => {
-            setIsModalOpen(false);
-            setPrefilledData(null);
-          }}
-          onSubmit={handleAddPurchase}
-          initialData={prefilledData}
-        />
-      )}
-      
-      {isSettingsModalOpen && (
-        <SettingsModal
-          onClose={closeSettingsModal}
-          aiTone={aiTone}
-          onSetAiTone={setAiTone}
-          onClearHistory={handleClearHistory}
-        />
-       )}
-
-      {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && (
-        <IncomingCall
-          transaction={callState.transaction}
-          analysis={callState.analysis}
-          audioUrl={callState.audioUrl}
-          onResolve={handleCallResolve}
-        />
-      )}
-    </SafeAreaView>
+        {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && (
+          <IncomingCall
+            transaction={callState.transaction}
+            analysis={callState.analysis}
+            audioUrl={callState.audioUrl}
+            onResolve={handleCallResolve}
+          />
+        )}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
