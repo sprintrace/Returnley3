@@ -41,6 +41,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: true,
       nagCount: 0,
       emotionalContext: 'Neutral / Normal',
+      isExample: true,
     },
     {
       id: 'sample-2',
@@ -52,6 +53,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: false,
       nagCount: 7,
       emotionalContext: 'Celebrating',
+      isExample: true,
     },
     {
       id: 'sample-3',
@@ -62,6 +64,7 @@ const getSampleTransactions = (): Transaction[] => {
       date: yesterday.toISOString().split('T')[0],
       isReturnable: false,
       nagCount: 0,
+      isExample: true,
     },
     {
       id: 'sample-4',
@@ -74,6 +77,7 @@ const getSampleTransactions = (): Transaction[] => {
       returnBy: returnByDate.toISOString().split('T')[0],
       nagCount: 2,
       emotionalContext: 'Excited',
+      isExample: true,
     },
     {
       id: 'sample-5',
@@ -85,6 +89,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: true,
       nagCount: 0,
       emotionalContext: 'Peer Pressured',
+      isExample: true,
     }
   ];
 };
@@ -568,11 +573,11 @@ export default function App() {
 
 
   // Filtered Lists
-  const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned), [transactions]);
-  const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept), [transactions]);
+  const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
+  const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
   // Includes pending, approved, flagged, and urges
-  const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned), [transactions]);
-  const totalSaved = useMemo(() => returnedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
+  const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned  && !t.isExample), [transactions]);
+  const totalSaved = useMemo(() => returnedTransactions.filter(t => !t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
 
   const monthlySaved = useMemo(() => {
     const today = new Date();
@@ -580,7 +585,7 @@ export default function App() {
     const currentYear = today.getFullYear();
     const monthlyReturns = returnedTransactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
+      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear && !t.isExample;
     });
     return monthlyReturns.reduce((sum, transaction) => sum + transaction.amount, 0);
   }, [returnedTransactions]);
