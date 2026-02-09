@@ -41,7 +41,7 @@ const analyzePurchase = async (
     emotionalContext?: string,
     isUrge: boolean = false
 ): Promise<PurchaseAnalysis> => {
-  const model = "gemini-2.5-pro";
+  const model = "gemini-2.5-flash";
 
   // A map to dynamically construct parts of the system instruction based on the user's selected tone.
   const toneMap = {
@@ -138,8 +138,13 @@ const analyzePurchase = async (
     }
   });
 
-  const jsonText = response.text.trim();
-  return JSON.parse(jsonText) as PurchaseAnalysis;
+  if (!response.text){
+    throw new Error ("Response is null");
+  }
+  else {
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText) as PurchaseAnalysis;
+  }
 };
 
 /**
@@ -328,16 +333,21 @@ export const analyzeReceipt = async (imageData: string): Promise<{ item: string;
     }
   });
   
-  const jsonText = response.text.trim();
-  const parsed = JSON.parse(jsonText);
-  
-  // Post-processing validation: Ensure the category returned by the AI is one we support.
-  if (!allCategories.includes(parsed.category)) {
-      console.warn(`Gemini returned an invalid category: ${parsed.category}. Defaulting to 'Shopping'.`);
-      parsed.category = 'Shopping';
+  if (!response.text){
+    throw new Error ("Response is null");
   }
+  else {
+    const jsonText = response.text.trim();
+    const parsed = JSON.parse(jsonText);
 
-  return parsed;
+    // Post-processing validation: Ensure the category returned by the AI is one we support.
+    if (!allCategories.includes(parsed.category)) {
+        console.warn(`Gemini returned an invalid category: ${parsed.category}. Defaulting to 'Shopping'.`);
+        parsed.category = 'Shopping';
+    }
+
+    return parsed;
+  }
 };
 
 /**
