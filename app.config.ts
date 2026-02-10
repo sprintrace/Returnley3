@@ -37,6 +37,7 @@ export default ({ config }: { config: ExpoConfig}) => {
             supportsTablet: true
         },
         android: {
+            package: "com.lovetech.returnley3",
             adaptiveIcon: {
                 foregroundImage: "./assets/adaptive-icon.png",
                 backgroundColor: "#ffffff"
