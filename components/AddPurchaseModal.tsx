@@ -107,13 +107,13 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
       animationType="slide"
       transparent={true}
       visible={true} // Modal is always visible when rendered
-      onRequestClose={onClose} // For Android back button
-    >
+      // For Android back button
+      onRequestClose={onClose} >
       <TouchableOpacity 
         style={styles.modalBackdrop} 
         activeOpacity={1} 
-        onPressOut={onClose} // Close when tapping outside
-      >
+        // Close when tapping outside
+        onPressOut={onClose} >
         <View style={styles.modalContent} onStartShouldSetResponder={() => true}> {/* Prevent propagation */}
         
           {/* Toggle between Purchase and Urge */}
@@ -165,8 +165,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 style={styles.input}
                 placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
                 placeholderTextColor="#9CA3AF" // gray-400
-                required
-              />
+                required/>
             </View>
             <View>
               <Text style={styles.label}>Amount ($)</Text>
@@ -178,8 +177,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 placeholder="e.g., 1599.99"
                 placeholderTextColor="#9CA3AF" // gray-400
                 keyboardType="numeric"
-                required
-              />
+                required/>
             </View>
             
             {/* Emotional Context */}
@@ -224,8 +222,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                     disabled={category === 'Fast Food'}
                     trackColor={{ false: "#767577", true: "#81b0ff" }}
                     thumbColor={isFinalSale ? "#f5dd4b" : "#f4f3f4"}
-                    ios_backgroundColor="#3e3e3e"
-                  />
+                    ios_backgroundColor="#3e3e3e"/>
                   <Text style={[styles.switchLabel, category === 'Fast Food' && styles.disabledText]}>
                     This is a final sale item (cannot be returned)
                   </Text>
@@ -238,8 +235,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 value={isInvestment}
                 trackColor={{ false: "#767577", true: "#81b0ff" }}
                 thumbColor={isInvestment ? "#f5dd4b" : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"
-              />
+                ios_backgroundColor="#3e3e3e"/>
               <Text style={styles.switchLabel}>
                 Justify as an investment (education/monetization)
               </Text>
@@ -258,8 +254,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                     multiline={true}
                     numberOfLines={Platform.OS === 'ios' ? undefined : 2}
                     minHeight={Platform.OS === 'ios' ? 60 : undefined}
-                    required
-                  />
+                    required/>
                 </View>
              )}
 
@@ -267,31 +262,28 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 <View>
                   <Text style={[styles.label, isFinalSale && styles.disabledText]}>Return By Date (Optional)</Text>
                   <TextInput
+                    // TODO: Implement date picker
                     id="return-by"
                     value={returnBy}
                     onChangeText={setReturnBy}
                     style={[styles.input, isFinalSale && styles.disabledInput]}
                     placeholder="YYYY-MM-DD"
                     placeholderTextColor="#9CA3AF" // gray-400
-                    editable={!isFinalSale}
-                    // A proper date picker component would be integrated here
-                  />
+                    editable={!isFinalSale}/>
                 </View>
             )}
 
             <View style={styles.buttonGroup}>
               <TouchableOpacity
                 onPress={onClose}
-                style={styles.cancelButton}
-              >
+                style={styles.cancelButton}>
                 <Text style={styles.buttonText}>
                   Cancel
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSubmit}
-                style={[styles.submitButton, isUrgeMode ? styles.submitButtonUrge : styles.submitButtonPurchase]}
-              >
+                style={[styles.submitButton, isUrgeMode ? styles.submitButtonUrge : styles.submitButtonPurchase]}>
                 <Text style={styles.buttonText}>
                   {isUrgeMode ? 'Log Urge' : 'Submit Purchase'}
                 </Text>
