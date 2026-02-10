@@ -190,10 +190,9 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                     selectedValue={emotionalContext}
                     onValueChange={(itemValue) => setEmotionalContext(itemValue)}
                     style={styles.picker}
-                    itemStyle={styles.pickerItem}
-                >
+                    itemStyle={styles.pickerItem}>
                     {EMOTIONS.map(e => (
-                        <Picker.Item key={e} label={e} value={e} />
+                        <Picker.Item key={e} label={String(e)} value={e} />
                     ))}
                 </Picker>
               </View>
@@ -210,7 +209,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                   itemStyle={styles.pickerItem}>
                   <Picker.Item label="Select a category" value="" enabled={false} />
                   {Object.values(CATEGORIES).flat().map(option => (
-                    <Picker.Item key={option} label={option} value={option} />
+                    <Picker.Item key={option} label={String(option)} value={option} />
                   ))}
                 </Picker>
               </View>
