@@ -34,6 +34,7 @@ export default ({ config }: { config: ExpoConfig}) => {
             backgroundColor: "#ffffff"
         },
         ios: {
+            bundleIdentifier: "com.lovetech.returnley3",
             supportsTablet: true
         },
         android: {
