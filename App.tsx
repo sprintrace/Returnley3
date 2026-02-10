@@ -1,7 +1,8 @@
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, use } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
@@ -572,23 +573,68 @@ export default function App() {
   }, [closeSettingsModal]);
 
 
-  // Filtered Lists
-  const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
-  const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
-  // Includes pending, approved, flagged, and urges
-  const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned  && !t.isExample), [transactions]);
-  const totalSaved = useMemo(() => returnedTransactions.filter(t => !t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
+  // // Filtered Lists
+  // const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
+  // const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
+  // // These lists include example transactions for display purposes
+  // const displayedReturnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned), [transactions]);
+  // const displayedShamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept), [transactions]);
+  // // Includes pending, approved, flagged, and urges
+  // const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned  && !t.isExample), [transactions]);
+  // const totalSaved = useMemo(() => returnedTransactions.filter(t => !t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
+
+  // Filtered Lists ("Demo" Mode)
+
+  // A flag to determine if the user has any real transactions.
+  const hasRealTransactions = useMemo(() => transactions.some(t => !t.isExample), [transactions]);
+
+  // The master list of transactions to display. If the user has read transactions, we show those.
+  // Otherwise we show the sample transactions.
+  const displayedTransactions = useMemo(() => {
+    return hasRealTransactions ? transactions.filter(t => !t.isExample) : transactions;
+  }, [transactions, hasRealTransactions]);
+
+  // Derived lists of different tabs, based on the master displayedTransactions list/
+  const returnedTransactions = useMemo(() => displayedTransactions.filter(t => t.status === TransactionStatus.Returned), [displayedTransactions]);
+  const shamefulTransactions = useMemo(() => displayedTransactions.filter(t => t.status === TransactionStatus.Kept), [displayedTransactions]);
+  const recentTransactions = useMemo(() => displayedTransactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned), [displayedTransactions]);
+
+  // For stat calculations (like Total Saved), we ALWAYS filter out examples.
+  const realReturnedTransactionsForStats = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
+  const realShamefulTransactionsForStats = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
+
+  const totalSaved = useMemo(() => realReturnedTransactionsForStats.reduce((sum, transaction) => sum + transaction.amount, 0), [realReturnedTransactionsForStats]);
+
+  // For displayed Total Money Saved, we include examples ONLY if there are no real transactions.
+  const displayedTotalSaved = useMemo(() => {
+    return hasRealTransactions
+      ? totalSaved // Use real total if real transactions exist
+      : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0); // Use example total if only examples
+  }, [hasRealTransactions, transactions, totalSaved]);
 
   const monthlySaved = useMemo(() => {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
-    const monthlyReturns = returnedTransactions.filter(t => {
+    const monthlyReturns = realReturnedTransactionsForStats.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear && !t.isExample;
+      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
     });
     return monthlyReturns.reduce((sum, transaction) => sum + transaction.amount, 0);
-  }, [returnedTransactions]);
+  }, [realReturnedTransactionsForStats]);
+
+  // For badge counts, we include examples ONLY if there are no real transactions.
+  const displayedReturnedTransactionsForBadges = useMemo(() => {
+    return hasRealTransactions
+      ? realReturnedTransactionsForStats
+      : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample);
+  }, [hasRealTransactions, transactions, realReturnedTransactionsForStats]);
+
+  const displayedShamefulTransactionsForBadges = useMemo(() => {
+    return hasRealTransactions
+      ? realShamefulTransactionsForStats
+      : transactions.filter(t => t.status === TransactionStatus.Kept && t.isExample);
+  }, [hasRealTransactions, transactions, realShamefulTransactionsForStats]);
 
 
   // --- Render ---
@@ -596,11 +642,11 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <Header 
-          onAddPurchase={openAddPurchaseModal} 
-          onScanReceipt={openScannerModal}
-          onOpenSettings={openSettingsModal}
-        />
+        {/* Top Title */}
+        <View style={styles.topTitleContainer}>
+          <Text style={styles.topTitleText}>Returnley</Text>
+        </View>
+
         <ScrollView style={styles.scrollView}>
           <View style={styles.mainContainer}>
             
@@ -636,27 +682,31 @@ export default function App() {
                     onPress={() => setActiveTab('wins')}
                     style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
                   >
-                    <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
-                      Returns
-                      {returnedTransactions.length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
+                        Returns
+                      </Text>
+                      {displayedReturnedTransactionsForBadges.length > 0 && (
                         <View style={styles.badgeContainer}>
-                          <Text style={styles.badgeText}>{returnedTransactions.length}</Text>
+                          <Text style={styles.badgeText}>{displayedReturnedTransactionsForBadges.length}</Text>
                         </View>
                       )}
-                    </Text>
+                    </View>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab('shameful')}
                     style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
                   >
-                    <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
-                      Shame
-                      {shamefulTransactions.length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
+                        Shame
+                      </Text>
+                      {displayedShamefulTransactionsForBadges.length > 0 && (
                         <View style={styles.badgeContainerShame}>
-                          <Text style={styles.badgeText}>{shamefulTransactions.length}</Text>
+                          <Text style={styles.badgeText}>{displayedShamefulTransactionsForBadges.length}</Text>
                         </View>
                       )}
-                    </Text>
+                    </View>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab('leaderboard')}
@@ -684,7 +734,7 @@ export default function App() {
                 <View style={styles.totalSavedCard}>
                   <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
                   <Text style={styles.totalSavedAmount}>
-                    ${totalSaved.toFixed(2)}
+                    ${displayedTotalSaved.toFixed(2)}
                   </Text>
                   {returnedTransactions.length > 0 && (
                     <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
@@ -697,6 +747,31 @@ export default function App() {
             {activeTab === 'learn' && <FinancialLiteracy />}
           </View>
         </ScrollView>
+
+        {/* Bottom Navigation Bar */}
+        <View style={styles.bottomNavBar}>
+          <TouchableOpacity
+            onPress={openScannerModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="camera-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Scan Receipt</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openAddPurchaseModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="add-circle-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Add Manually</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openSettingsModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="settings-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Settings</Text>
+          </TouchableOpacity>
+        </View>
 
         {isScannerOpen && (
           <ReceiptScannerModal
@@ -741,11 +816,12 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    flexDirection: 'column', // Stack children vertically
     backgroundColor: '#111827', // bg-gray-900
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
   },
   scrollView: {
-    flex: 1,
+    flex: 1, // Take up all available vertical space
   },
   mainContainer: {
     padding: 16, // p-4 md:p-6
@@ -878,5 +954,44 @@ const styles = StyleSheet.create({
     fontSize: 14, // text-sm
     color: '#9CA3AF', // text-gray-400
     marginTop: 4, // mt-1
+  },
+  topTitleContainer: {
+    backgroundColor: '#1F2937', // bg-gray-800
+    paddingVertical: 16, // py-4
+    alignItems: 'center', // Center title horizontally
+    shadowColor: '#000', // shadow-lg
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  topTitleText: {
+    fontSize: 28, // Larger font size for main title
+    fontWeight: 'bold',
+    color: '#A78BFA', // Purple color
+  },
+  bottomNavBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#1F2937', // bg-gray-800
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderColor: '#374151', // border-gray-700
+    shadowColor: '#000', // shadow-lg
+    shadowOffset: { width: 0, height: -2 }, // Shadow at the top
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bottomNavButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  bottomNavButtonText: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
   },
 });

@@ -60,7 +60,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     aiTone === 'encouraging' ? styles.toneButtonPurple : styles.toneButtonInactive
                   ]}
                 >
-                  <Text style={[styles.toneButtonText, aiTone === 'encouraging' && styles.toneButtonTextActive]}>
+                  <Text
+                    style={[styles.toneButtonText, aiTone === 'encouraging' && styles.toneButtonTextActive]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                  >
                     Encouraging
                   </Text>
                 </TouchableOpacity>
@@ -71,7 +75,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     aiTone === 'stern' ? styles.toneButtonRed : styles.toneButtonInactive
                   ]}
                 >
-                  <Text style={[styles.toneButtonText, aiTone === 'stern' && styles.toneButtonTextActive]}>
+                  <Text
+                    style={[styles.toneButtonText, aiTone === 'stern' && styles.toneButtonTextActive]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                  >
                     Stern
                   </Text>
                 </TouchableOpacity>
@@ -82,7 +90,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     aiTone === 'ruthless' ? styles.toneButtonDarkRed : styles.toneButtonInactive
                   ]}
                 >
-                  <Text style={[styles.toneButtonText, aiTone === 'ruthless' && styles.toneButtonTextActive]}>
+                  <Text
+                    style={[styles.toneButtonText, aiTone === 'ruthless' && styles.toneButtonTextActive]}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                  >
                     Ruthless
                   </Text>
                 </TouchableOpacity>
@@ -93,7 +105,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <View style={styles.dangerZoneBorder}>
                <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
                <View style={styles.clearTransactionsContainer}>
-                  <View>
+                  <View style={{ flexShrink: 1 }}>
                       <Text style={styles.clearTransactionsText}>Clear All Transactions</Text>
                       <Text style={styles.clearTransactionsDescription}>This will permanently delete all your data.</Text>
                   </View>
@@ -180,6 +192,7 @@ const styles = StyleSheet.create({
     padding: 4, // p-1
     borderRadius: 8, // rounded-lg
     flexDirection: 'row', // flex
+    flexWrap: 'nowrap', // Prevent buttons from wrapping
     // sm:flex-row space-y-2 sm:space-y-0 sm:space-x-1 (responsive layout handled by flex-direction and margins)
   },
   toneButton: {
@@ -190,6 +203,7 @@ const styles = StyleSheet.create({
     transitionDuration: 200, // transition-colors (handled by TouchableOpacity feedback)
     alignItems: 'center',
     marginHorizontal: 2, // simulating space-x-1
+    flexShrink: 1, // Allow the button to shrink
   },
   toneButtonPurple: {
     backgroundColor: '#7C3AED', // bg-purple-600
@@ -230,8 +244,10 @@ const styles = StyleSheet.create({
     borderRadius: 8, // rounded-lg
     padding: 16, // p-4
     flexDirection: 'row', // flex
+    flexWrap: 'wrap', // Allow content to wrap
     justifyContent: 'space-between', // justify-between
     alignItems: 'center', // items-center
+    flexShrink: 1, // Allow the container to shrink
   },
   clearTransactionsText: {
     fontWeight: '600', // font-semibold

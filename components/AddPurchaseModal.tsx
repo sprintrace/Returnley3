@@ -120,16 +120,14 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
           <View style={styles.toggleContainer}>
               <TouchableOpacity
                   onPress={() => setIsUrgeMode(false)}
-                  style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}
-              >
+                  style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}>
                   <Text style={[styles.toggleButtonText, !isUrgeMode && styles.toggleButtonTextActive]}>
                       I Bought This
                   </Text>
               </TouchableOpacity>
               <TouchableOpacity
                   onPress={() => setIsUrgeMode(true)}
-                  style={[styles.toggleButton, isUrgeMode && styles.toggleButtonActiveIndigo]}
-              >
+                  style={[styles.toggleButton, isUrgeMode && styles.toggleButtonActiveIndigo]}>
                   <Text style={[styles.toggleButtonText, isUrgeMode && styles.toggleButtonTextActive]}>
                       I Want This (Urge)
                   </Text>
@@ -209,8 +207,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                   selectedValue={category}
                   onValueChange={(itemValue) => setCategory(itemValue)}
                   style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
+                  itemStyle={styles.pickerItem}>
                   <Picker.Item label="Select a category" value="" enabled={false} />
                   {Object.values(CATEGORIES).flat().map(option => (
                     <Picker.Item key={option} label={option} value={option} />
