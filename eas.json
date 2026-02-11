@@ -1,9 +1,21 @@
 {
-    "build": {
-        "production": {
-            "env": {
-                "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
-            }
-        }
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
+      }
     }
+  },
+  "cli": {
+    "appVersionSource": "remote"
+  }
 }
