@@ -54,6 +54,9 @@ export default ({ config }: { config: ExpoConfig}) => {
                 projectId: "3850c4a1-72b8-4ee2-83e4-fe8f19a5355c"
             }
         },
-        owner: "huntyboy102"
+        owner: "huntyboy102",
+        plugins: [
+            "expo-asset"
+        ]
     };
 };
