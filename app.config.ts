@@ -56,7 +56,13 @@ export default ({ config }: { config: ExpoConfig}) => {
         },
         owner: "huntyboy102",
         plugins: [
-            "expo-asset"
+            "expo-asset",
+            [
+                "expo-camera",
+                {
+                    cameraPermission: "Allow Returnley to access your camera to scan receipts."
+                }
+            ]
         ]
     };
 };

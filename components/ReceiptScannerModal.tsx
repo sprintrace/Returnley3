@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform, Button } from 'react-native';
+import { Camera, CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
 /**
@@ -17,25 +17,29 @@ interface ReceiptScannerModalProps {
  * A modal component for scanning receipts using the device's camera.
  */
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClose, onConfirm }) => {
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<React.ElementRef<typeof CameraView>>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const [capturedImageBase64, setCapturedImageBase64] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTakingPicture, setIsTakingPicture] = useState(false);
 
-  /**
-   * Effect to request camera permissions when the component mounts.
-   */
+  const [permission, requestPermission] = useCameraPermissions();
+  const [permissionChecked, setPermissionChecked] = useState(false);
+
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-      if (status !== 'granted') {
-        setError('Camera permission not granted. Please enable it in your device settings.');
+    const checkPermission = async () => {
+      if (!permission) return;
+
+      if (!permission.granted) {
+        requestPermission();
       }
-    })();
-  }, []);
+
+      setPermissionChecked(true);
+    };
+
+    checkPermission();
+  }, [permission]);
 
   /**
    * Captures a photo using the camera.
@@ -49,10 +53,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
           base64: true,
           exif: false, // receipts don't need exif data
           // Skip processing if on Android for faster capture and to use raw image data
-          skipProcessing: Camera.Constants.Platform === 'android' ? true : false,
+          skipProcessing: Platform.OS === 'android' ? true : false,
         });
         setCapturedImageUri(photo.uri);
-        setCapturedImageBase64(photo.base64);
+        setCapturedImageBase64(photo.base64 ?? null);
         setError(null);
       } catch (err) {
         console.error('Error taking picture:', err);
@@ -82,26 +86,27 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
   };
 
   // Render loading state while checking permissions
-  if (hasPermission === null) {
+  if (!permissionChecked) {
     return (
-      <Modal transparent={true} animationType="fade" visible={true}>
+      <Modal transparent animationType="fade" visible>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="white" />
-          <Text style={styles.loadingText}>Requesting camera permission...</Text>
+          <Text style={styles.loadingText}>
+            Initializing camera...
+          </Text>
         </View>
       </Modal>
     );
   }
 
-  // Render error message if permission is denied
-  if (hasPermission === false) {
+  // Render error message if permission is denied  
+  if (!permission?.granted) {
     return (
-      <Modal transparent={true} animationType="fade" visible={true}>
-        <View style={styles.errorScreen}>
-          <Text style={styles.errorScreenText}>{error}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.errorScreenCloseButton}>
-            <Text style={styles.errorScreenCloseButtonText}>Close</Text>
-          </TouchableOpacity>
+      <Modal transparent animationType="fade" visible>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorScreenText}>
+            Camera permission denied. Please enable it in settings.
+          </Text>
         </View>
       </Modal>
     );
@@ -134,17 +139,17 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
               style={styles.capturedImage}
             />
           ) : (
-            <Camera
+            <CameraView
               style={styles.camera}
-              type={CameraType.back} // Prioritize back camera
-              ref={cameraRef}
-            >
+              facing={"back"} // Prioritize back camera
+              ref={cameraRef}>
+              
               {isTakingPicture && (
                 <View style={styles.activityIndicatorContainer}>
                   <ActivityIndicator size="large" color="white" />
                 </View>
               )}
-            </Camera>
+            </CameraView>
           )}
         </View>
 
