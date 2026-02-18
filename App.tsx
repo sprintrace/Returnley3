@@ -307,90 +307,108 @@ export default function App() {
 
 
   const handleAddPurchase = async (
-      item: string, 
-      amount: number, 
-      category: string, 
-      isReturnable: boolean, 
-      returnBy?: string, 
-      justification?: string,
-      emotionalContext?: string,
-      isUrge?: boolean
-    ) => {
+    item: string, 
+    amount: number, 
+    category: string, 
+    isReturnable: boolean, 
+    returnBy?: string, 
+    justification?: string,
+    emotionalContext?: string,
+    isUrge?: boolean
+  ) => {
+    // Close modal and clear prefilled data immediately
     setIsModalOpen(false);
     setPrefilledData(null);
 
-    // If it's Fast Food and NOT an Urge, immediate shame.
-    if (isFastFoodPurchase(item, category) && !isReturnable && !isUrge) {
-      const shamefulTransaction: Transaction = {
-        id: Date.now().toString(),
-        item,
-        amount,
-        category: 'Fast Food',
-        status: TransactionStatus.Kept,
-        date: new Date().toISOString().split('T')[0],
-        isReturnable: false,
-        nagCount: MAX_NAGS,
-        justification,
-        emotionalContext
-      };
-      setTransactions(prev => [shamefulTransaction, ...prev]);
+    // Defensive: Ensure required values exist
+    if (!item || !category) {
+      console.error('Item or category missing:', { item, category });
+      setError('Missing item or category.');
       return;
     }
 
+    // Immediate shame logic for Fast Food (non-returnable, non-urge)
+    try {
+      if (isFastFoodPurchase?.(item, category) && !isReturnable && !isUrge) {
+        const shamefulTransaction: Transaction = {
+          id: Date.now().toString(),
+          item,
+          amount,
+          category: 'Fast Food',
+          status: TransactionStatus.Kept,
+          date: new Date().toISOString().split('T')[0],
+          isReturnable: false,
+          nagCount: MAX_NAGS,
+          justification,
+          emotionalContext
+        };
+        setTransactions(prev => [shamefulTransaction, ...prev]);
+        return;
+      } 
+    } catch (err) {
+      console.error('Error checking fast food:', err);
+      setError('Failed to evaluate fast food purchase.');
+      return;
+    }
+
+    // Start loading UI
     setIsLoading(true);
     setLoadingMessage(isUrge ? 'Analyzing your urge...' : 'Returnley is thinking...');
     setError(null);
 
     try {
       const result = await analyzePurchaseAndGenerateAudio(
-          item, 
-          amount, 
-          category, 
-          isReturnable, 
-          returnBy, 
-          justification, 
-          aiTone, 
-          userProfile || undefined, // Pass user profile
-          emotionalContext,
-          isUrge
-        );
+        item, 
+        amount, 
+        category, 
+        isReturnable, 
+        returnBy, 
+        justification, 
+        aiTone, 
+        userProfile || undefined, //TODO: Setup user profiles and pass user profile
+        emotionalContext,
+        isUrge
+      );
+
+      const analysis = result?.analysis;
+      const audioUrl = result?.audioUrl;
       
+      // Determine transaction status
       let status = TransactionStatus.Pending;
-      if (isUrge) {
-          status = TransactionStatus.Urge;
-      } else if (result.analysis.isNecessary) {
-          status = TransactionStatus.Approved;
-      }
+      if (isUrge) status = TransactionStatus.Urge;
+      else if (result.analysis.isNecessary) status = TransactionStatus.Approved;
 
       const newTransaction: Transaction = {
         id: Date.now().toString(),
         item,
         amount,
         category,
-        status: status,
+        status,
         date: new Date().toISOString().split('T')[0],
-        isReturnable: isReturnable,
-        returnBy: result.analysis.estimatedReturnBy || returnBy,
+        isReturnable,
+        returnBy: analysis?.estimatedReturnBy || returnBy,
         justification,
         nagCount: 0,
-        emotionalContext: emotionalContext,
-        hotTake: result.analysis.hotTake // Store the hot take if it exists
+        emotionalContext,
+        hotTake: analysis?.hotTake // Store the hot take if it exists
       };
 
       setTransactions(prev => [newTransaction, ...prev]);
 
       // Only trigger the call if it's Unnecessary AND NOT an Urge.
-      if (!result.analysis.isNecessary && !isUrge) {
-        setCallState({
+      if (!analysis?.isNecessary && !isUrge) {
+        setCallState?.({
           isActive: true,
           transaction: newTransaction,
-          analysis: result.analysis,
-          audioUrl: result.audioUrl,
+          analysis,
+          audioUrl,
         });
       }
     } catch (err) {
-      console.error(err);
+      console.error('Analysis failed', err);
+
       setError('Failed to analyze purchase. Flagged for manual review.');
+      
       const failedTransaction: Transaction = {
         id: Date.now().toString(),
         item,
@@ -398,13 +416,14 @@ export default function App() {
         category,
         status: isUrge ? TransactionStatus.Urge : TransactionStatus.Flagged,
         date: new Date().toISOString().split('T')[0],
-        isReturnable: isReturnable,
+        isReturnable,
         returnBy,
         justification,
         nagCount: 0,
         emotionalContext,
         error: 'Analysis failed.'
       };
+      
       setTransactions(prev => [failedTransaction, ...prev]);
     } finally {
       setIsLoading(false);
