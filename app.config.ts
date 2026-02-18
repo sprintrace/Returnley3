@@ -7,17 +7,18 @@ interface AppConfigExtra {
 }
 
 export default ({ config }: { config: ExpoConfig}) => {
-    const geminiApiKey: string | undefined = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    const geminiApiKey: string | undefined = process.env.GEMINI_API_KEY;
 
     // In a production build, if the API key is missing, EAS Secrets is misconfigured
-    if (!geminiApiKey && process.env.NODE_ENV === "production") {
-        throw new Error('geminiApiKey is not defined in this production build. Ensure EXPO_PUBLIC_GEMINI_API_KEY is set as an EAS Secret.');
+    if (!geminiApiKey && process.env.NODE_ENV === "production" || 
+        process.env.NODE_ENV === "preview") {
+        throw new Error('geminiApiKey is not defined in this build. Ensure GEMINI_API_KEY is set as an EAS Secret.');
     }
     // For local development, warn if the key is missing but don't halt execution
     else if (!geminiApiKey && process.env.NODE_ENV === "development")
     {
-        console.warn('EXPO_PUBLIC_GEMINI_API_KEY is not defined in .env for local development. \n' +
-            'Please ensure you have a .env file containing EXPO_PUBLIC_GEMINI_API_KEY=YOUR_API_KEY and replace YOUR_API_KEY with the ACTUAL api key');
+        console.warn('GEMINI_API_KEY is not defined in .env for local development. \n' +
+            'Please ensure you have a .env file containing GEMINI_API_KEY=YOUR_API_KEY and replace YOUR_API_KEY with the ACTUAL api key');
     }
 
     return {
@@ -49,7 +50,6 @@ export default ({ config }: { config: ExpoConfig}) => {
         },
         extra: {
             ...config.extra,
-            geminiApiKey: geminiApiKey,
             eas: {
                 projectId: "3850c4a1-72b8-4ee2-83e4-fe8f19a5355c"
             }

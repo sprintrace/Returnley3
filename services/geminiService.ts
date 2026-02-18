@@ -9,11 +9,12 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import Constants from 'expo-constants';
 
 
-const geminiApiKey = Constants.expoConfig?.extra?.geminiApiKey;
+const geminiApiKey: string | undefined = process.env.GEMINI_API_KEY
+ || Constants.expoConfig?.extra?.geminiApiKey;
 
 // Ensure the API key is available.
 if (!geminiApiKey) {
-    throw new Error("geminiApiKey is not defined. Ensure EXPO_PUBLIC_GEMINI_API_KEY is set in app.config.ts or as an EAS Secret.");
+    throw new Error("geminiApiKey is not defined. Ensure GEMINI_API_KEY is set in app.config.ts or as an EAS Secret.");
 }
 
 const ai = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -41,11 +42,12 @@ const analyzePurchase = async (
     userProfile?: UserProfile,
     emotionalContext?: string,
     isUrge: boolean = false
-): Promise<PurchaseAnalysis> => {
-  const model = "gemini-2.5-flash";
+  ): Promise<PurchaseAnalysis> => {
+  
+    const model = "gemini-2.5-flash";
 
-  // A map to dynamically construct parts of the system instruction based on the user's selected tone.
-  const toneMap = {
+    // A map to dynamically construct parts of the system instruction based on the user's selected tone.
+    const toneMap = {
       encouraging: {
           intro: "You are Returnley, an AI financial conscience. Your tone is firm, but encouraging and your goal is to help users curb compulsive spending.",
           returnableScriptInstruction: "create a short, firm, but encouraging script for a phone call urging the user to return the item.",
@@ -61,26 +63,27 @@ const analyzePurchase = async (
           returnableScriptInstruction: "create a short, savage script for a phone call that demolishes any pathetic justification for keeping the item. Frame it as an embarrassing, predictable failure of self-control. Question their intelligence.",
           nonReturnableScriptInstruction: "create a script that is a brutal dressing-down about the permanent stupidity of their decision. Make them feel the full, crushing weight of their financial incompetence. Rub it in."
       }
-  };
-  const selectedTone = toneMap[tone];
+    };
 
-  // Construct context string
-  let userContextStr = "";
-  if (userProfile) {
+    const selectedTone = toneMap[tone];
+
+    // Construct context string
+    let userContextStr = "";
+    if (userProfile) {
       userContextStr = `
       USER PROFILE:
-      - Monthly Income: $${userProfile.monthlyIncome}
-      - Financial Weakness: ${userProfile.financialWeakness}
-      - Main Goal: ${userProfile.savingsGoal}
+      - Monthly Income: $${userProfile.monthlyIncome || 0}
+      - Financial Weakness: ${userProfile.financialWeakness || 'None'}
+      - Main Goal: ${userProfile.savingsGoal || 'Unknown'}
       
       Compare the purchase amount ($${amount}) to their monthly income. If it's a significant % (e.g. > 10%), be more critical.
       If the item aligns with their "Financial Weakness", call them out on falling into old habits.
       Remind them how this purchase hurts their "Main Goal".
       `;
-  }
+    }
 
-  let emotionalContextStr = "";
-  if (emotionalContext && emotionalContext !== 'Neutral / Normal') {
+    let emotionalContextStr = "";
+    if (emotionalContext && emotionalContext !== 'Neutral / Normal') {
       emotionalContextStr = `
       USER EMOTIONAL STATE: ${emotionalContext}
       The user reported feeling this way when adding the item. 
@@ -89,8 +92,8 @@ const analyzePurchase = async (
       `;
   }
 
-  // The system instruction provides detailed context and rules for the AI model.
-  const systemInstruction = `${selectedTone.intro} Analyze the user's purchase based on all provided details.
+    // The system instruction provides detailed context and rules for the AI model.
+    const systemInstruction = `${selectedTone.intro} Please analyze the user's purchase based on all provided details.
     
     ${userContextStr}
     ${emotionalContextStr}
@@ -115,36 +118,47 @@ const analyzePurchase = async (
     
     Provide a brief reasoning for your decision. The callScript should be empty if the purchase is necessary OR if it is an urge.`;
 
-  const today = new Date().toISOString().split('T')[0];
-  const prompt = `Purchase Date: ${today}. Analyze this purchase:\nItem: ${item}\nAmount: $${amount}\nCategory: ${category}\nReturnable: ${isReturnable}\nReturn By: ${returnBy || 'N/A'}\nUser Justification: ${justification || 'None provided'}\nIs Urge: ${isUrge}`;
+    const today = new Date().toISOString().split('T')[0];
+    const prompt = `Purchase Date: ${today}. Please analyze this purchase:\nItem: ${item}\nAmount: $${amount}\nCategory: ${category}\nReturnable: ${isReturnable}\nReturn By: ${returnBy || 'N/A'}\nUser Justification: ${justification || 'None provided'}\nIs Urge: ${isUrge}`;
 
-  const response = await ai.models.generateContent({
-    model: model,
-    contents: prompt,
-    config: {
-      systemInstruction: systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          isNecessary: { type: Type.BOOLEAN, description: "Whether the purchase is deemed necessary." },
-          reasoning: { type: Type.STRING, description: "A brief explanation for the decision." },
-          callScript: { type: Type.STRING, description: "Script for the call. Empty if necessary or if it's an urge." },
-          hotTake: { type: Type.STRING, description: "A punchy, one-sentence reaction if this is an urge." },
-          estimatedReturnBy: { type: Type.STRING, description: "Estimated return date in YYYY-MM-DD." }
+    let response;
+
+    try {
+    response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isNecessary: { type: Type.BOOLEAN, description: "Whether the purchase is deemed necessary." },
+            reasoning: { type: Type.STRING, description: "A brief explanation for the decision." },
+            callScript: { type: Type.STRING, description: "Script for the call. Empty if necessary or if it's an urge." },
+            hotTake: { type: Type.STRING, description: "A punchy, one-sentence reaction if this is an urge." },
+            estimatedReturnBy: { type: Type.STRING, description: "Estimated return date in YYYY-MM-DD." }
+          },
+          required: ["isNecessary", "reasoning", "callScript"],
         },
-        required: ["isNecessary", "reasoning", "callScript"],
-      },
-      temperature: 0.7,
-    }
-  });
-
-  if (!response.text){
-    throw new Error ("Response is null");
+        temperature: 0.7,
+      }
+    });
+  } catch (err) {
+      console.error('AI generation failed', err);
+      throw new Error('AI generation failed');
   }
-  else {
-    const jsonText = response.text.trim();
-    return JSON.parse(jsonText) as PurchaseAnalysis;
+
+  if (!response || !response.text) {
+      throw new Error("AI response is null or malformed");
+  }
+
+  try {
+      const jsonText = response.text.trim();
+      return JSON.parse(jsonText) as PurchaseAnalysis;
+  } catch (err) {
+      console.error('Failed to parse AI JSON response:', response.text, err);
+      throw new Error('Invalid AI response format');
   }
 };
 
@@ -178,9 +192,14 @@ const generateCallAudio = async (text: string): Promise<string> => {
     const audioBytes = Buffer.from(base64Audio, 'base64');
     
     // Save to a temporary file
-    const fileUri = FileSystem.cacheDirectory + 'call_audio_' + Date.now() + '.wav';
+    const cacheDir = (FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory;
+    if (!cacheDir) {
+        throw new Error("No writable directory found for temporary audio.");
+    }
+
+    const fileUri = cacheDir + `call_audio_${Date.now()}.wav`;
     await FileSystem.writeAsStringAsync(fileUri, audioBytes.toString('base64'), {
-      encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
     });
 
     return fileUri;

@@ -6,12 +6,12 @@
       },
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
+        "GEMINI_API_KEY": "@GEMINI_API_KEY"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_GEMINI_API_KEY": "$(secret:GEMINI_API_KEY)"
+        "GEMINI_API_KEY": "@GEMINI_API_KEY"
       }
     }
   },
