@@ -10,14 +10,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
   const [income, setIncome] = useState('');
   const [weakness, setWeakness] = useState('');
   const [goal, setGoal] = useState('');
+  const [goalAmount, setGoalAmount] = useState('');
 
   const handleSubmit = () => {
-    if (income && weakness && goal) {
+    if (income && weakness && goal && goalAmount) {
       onComplete({
         monthlyIncome: parseFloat(income),
         financialWeakness: weakness,
         savingsGoal: goal,
-        // Default values for other UserProfile properties if any, or ensure they are optional.
+        goalAmount: parseFloat(goalAmount),
       });
     }
   };
@@ -75,19 +76,38 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               </View>
             </View>
 
-            <View>
-              <Text style={styles.label}>
-                What is your main financial goal right now?
-              </Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  required
-                  value={goal}
-                  onChangeText={setGoal}
-                  style={styles.input}
-                  placeholder="e.g., Save for a house, Pay off debt, Vacation"
-                  placeholderTextColor="#9CA3AF"
-                />
+            <View style={styles.twoColumnInput}>
+              <View style={styles.column}>
+                <Text style={styles.label}>
+                  Main Financial Goal
+                </Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    required
+                    value={goal}
+                    onChangeText={setGoal}
+                    style={styles.input}
+                    placeholder="e.g., Vacation, Debt"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              </View>
+              <View style={styles.column}>
+                <Text style={styles.label}>
+                  Target Amount
+                </Text>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    keyboardType="numeric"
+                    required
+                    value={goalAmount}
+                    onChangeText={setGoalAmount}
+                    style={styles.input}
+                    placeholder="5000"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
               </View>
             </View>
 
@@ -160,7 +180,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8, // rounded-lg
     paddingLeft: 8, // pl-8 due to currency symbol
-    marginBottom: 24, // space-y-6
+    // marginBottom: 24, // space-y-6 - handled by parent View
   },
   currencySymbol: {
     color: '#9CA3AF', // text-gray-500
@@ -173,6 +193,14 @@ const styles = StyleSheet.create({
     color: 'white', // text-white
     fontSize: 16,
     // focus:ring-2 focus:ring-purple-500 focus:border-transparent (focus styles are different in RN)
+  },
+  twoColumnInput: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  column: {
+    width: '48%', // Approx half with some space
   },
   submitButton: {
     // approximated gradient with solid color

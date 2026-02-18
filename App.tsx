@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useEffect, useCallback, useMemo, use } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { FinancialLiteracy } from './components/FinancialLiteracy';
 import { SettingsModal } from './components/SettingsModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { GoalProgress } from './components/GoalProgress';
 import { FAST_FOOD_KEYWORDS } from './lib/keywords';
 
 /**
@@ -266,6 +266,37 @@ export default function App() {
 
   // --- Event Handlers ---
   
+  const handleDebugReset = useCallback(() => {
+    // Instant reset for dev/debugging speed
+    // 1. Clear User Profile (Triggers Onboarding)
+    setUserProfile(null);
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(USER_PROFILE_KEY);
+    } else {
+        AsyncStorage.removeItem(USER_PROFILE_KEY);
+    }
+    
+    // 2. Reset Transactions to Sample Data
+    setTransactions(getSampleTransactions());
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } else {
+        AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+    
+    // 3. Reset AI Tone
+    setAiTone('encouraging');
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(AI_TONE_KEY);
+    } else {
+        AsyncStorage.removeItem(AI_TONE_KEY);
+    }
+
+    // 4. Reset View
+    setActiveTab('recent');
+    console.log("App reset to initial state.");
+  }, []);
+
   const isFastFoodPurchase = (item: string, category: string): boolean => {
     if (category === 'Fast Food') {
       return true;
@@ -468,7 +499,6 @@ export default function App() {
 
             // Trigger the call if unnecessary
             if (!result.analysis.isNecessary) {
-                // We construct a temporary object for the call state to ensure it has the latest status
                 setCallState({
                     isActive: true,
                     transaction: { ...transaction, status: newStatus },
@@ -544,6 +574,12 @@ export default function App() {
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
   }, [callState]);
   
+  const handleUpdateGoal = useCallback((name: string, amount: number) => {
+    if (userProfile) {
+      setUserProfile({ ...userProfile, savingsGoal: name, goalAmount: amount });
+    }
+  }, [userProfile]);
+  
   const openAddPurchaseModal = useCallback(() => setIsModalOpen(true), []);
   const openScannerModal = useCallback(() => setIsScannerOpen(true), []);
   const openSettingsModal = useCallback(() => setIsSettingsModalOpen(true), []);
@@ -561,7 +597,11 @@ export default function App() {
           onPress: async () => {
             setTransactions(getSampleTransactions());
             try {
-              await AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+              if (Platform.OS === 'web') {
+                window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+              } else {
+                AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+              }
             } catch (error) {
               console.error("Error clearing history from AsyncStorage", error);
             }
@@ -572,16 +612,6 @@ export default function App() {
     );
   }, [closeSettingsModal]);
 
-
-  // // Filtered Lists
-  // const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
-  // const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
-  // // These lists include example transactions for display purposes
-  // const displayedReturnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned), [transactions]);
-  // const displayedShamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept), [transactions]);
-  // // Includes pending, approved, flagged, and urges
-  // const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned  && !t.isExample), [transactions]);
-  // const totalSaved = useMemo(() => returnedTransactions.filter(t => !t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
 
   // Filtered Lists ("Demo" Mode)
 
@@ -612,6 +642,7 @@ export default function App() {
       : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0); // Use example total if only examples
   }, [hasRealTransactions, transactions, totalSaved]);
 
+
   const monthlySaved = useMemo(() => {
     const today = new Date();
     const currentMonth = today.getMonth();
@@ -635,6 +666,9 @@ export default function App() {
       ? realShamefulTransactionsForStats
       : transactions.filter(t => t.status === TransactionStatus.Kept && t.isExample);
   }, [hasRealTransactions, transactions, realShamefulTransactionsForStats]);
+
+  // Calculate the amount allocated to the goal (40% of returns)
+  const goalSaved = useMemo(() => totalSaved * 0.40, [totalSaved]);
 
 
   // --- Render ---
@@ -740,6 +774,13 @@ export default function App() {
                     <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
                   )}
                 </View>
+                 <GoalProgress 
+                   currentSaved={goalSaved}
+                   totalReturned={totalSaved} 
+                   goalName={userProfile?.savingsGoal || 'General Savings'} 
+                   goalAmount={userProfile?.goalAmount || 1000}
+                   onUpdateGoal={handleUpdateGoal}
+                />
                 <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
               </View>
             )}

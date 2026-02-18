@@ -1,24 +1,27 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 /**
  * Props for the Header component.
  */
 interface HeaderProps {
-  // No props needed now
+  /** Function to call when the logo is clicked (Debug reset). */
+  onLogoClick: () => void;
 }
 
 /**
  * The main application header component.
- * Displays the app title.
+ * Displays the app title and handles logo click for debug reset.
  */
-export const Header: React.FC<HeaderProps> = React.memo(() => {
+export const Header: React.FC<HeaderProps> = React.memo(({ onLogoClick }) => {
   return (
     <View style={styles.header}>
       <View style={styles.container}>
-        <Text style={styles.title}>
-          Returnley
-        </Text>
+        <TouchableOpacity onPress={onLogoClick} style={styles.logoButton}>
+          <Text style={styles.title}>
+            Returnley
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -41,10 +44,12 @@ const styles = StyleSheet.create({
     width: '100%', // Ensure it takes full width within header
     alignItems: 'center', // Center title text
   },
+  logoButton: {
+    // Style for the TouchableOpacity around the logo, if needed
+  },
   title: {
     fontSize: 24, // md:text-2xl (text-xl is 20, text-2xl is 24)
     fontWeight: 'bold', // font-bold
-    color: 'transparent', // This will need a gradient overlay component or similar for full effect
     color: '#A78BFA', // from-purple-400
     flexShrink: 1, // Allow the title to shrink if necessary
     marginBottom: 0, // No margin needed, as no buttons below

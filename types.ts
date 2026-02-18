@@ -76,4 +76,5 @@ export interface UserProfile {
   monthlyIncome: number;
   financialWeakness: string;
   savingsGoal: string;
+  goalAmount: number;
 }
