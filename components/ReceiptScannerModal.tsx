@@ -10,7 +10,7 @@ interface ReceiptScannerModalProps {
   /** Function to call when the modal should be closed. */
   onClose: () => void;
   /** Function to call when a picture is confirmed, passing the base64 image data. */
-  onConfirm: (imageData: string) => void;
+  onConfirm: (imageUri: string) => void;
 }
 
 /**
@@ -18,9 +18,7 @@ interface ReceiptScannerModalProps {
  */
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClose, onConfirm }) => {
   const cameraRef = useRef<React.ElementRef<typeof CameraView>>(null);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
-  const [capturedImageBase64, setCapturedImageBase64] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTakingPicture, setIsTakingPicture] = useState(false);
 
@@ -49,14 +47,13 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
       setIsTakingPicture(true);
       try {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.9,
-          base64: true,
+          quality: 0.8,
+          base64: false,
           exif: false, // receipts don't need exif data
           // Skip processing if on Android for faster capture and to use raw image data
           skipProcessing: Platform.OS === 'android' ? true : false,
         });
         setCapturedImageUri(photo.uri);
-        setCapturedImageBase64(photo.base64 ?? null);
         setError(null);
       } catch (err) {
         console.error('Error taking picture:', err);
@@ -72,7 +69,6 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
    */
   const handleRetake = () => {
     setCapturedImageUri(null);
-    setCapturedImageBase64(null);
     setError(null);
   };
 
@@ -80,8 +76,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
    * Handles the "Use Picture" button click. Calls the onConfirm prop with the image data.
    */
   const handleConfirm = () => {
-    if (capturedImageBase64) {
-      onConfirm(capturedImageBase64);
+    if (capturedImageUri) {
+      onConfirm(capturedImageUri);
     }
   };
 
@@ -139,23 +135,20 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
               style={styles.capturedImage}
             />
           ) : (
-            <CameraView
-              style={styles.camera}
-              facing={"back"} // Prioritize back camera
-              ref={cameraRef}>
-              
-              {isTakingPicture && (
-                <View style={styles.activityIndicatorContainer}>
-                  <ActivityIndicator size="large" color="white" />
-                </View>
-              )}
-            </CameraView>
+            <View style={{ flex: 1}}>
+              <CameraView
+                style={styles.camera}
+                facing={"back"} // Prioritize back camera
+                ref={cameraRef}>
+              </CameraView>
+            </View>
           )}
         </View>
 
         <View style={styles.buttonActionsContainer}>
           {/* Conditionally render buttons based on whether an image has been captured */}
           {capturedImageUri ? (
+            // Not sure what this is but if you remove it shit goes red
             <>
               <TouchableOpacity onPress={handleRetake} style={styles.retakeButton}>
                 <Text style={styles.buttonText}>

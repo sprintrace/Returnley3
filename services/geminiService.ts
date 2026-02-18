@@ -4,6 +4,7 @@ import type { PurchaseAnalysis, UserProfile } from '../types';
 import { CATEGORIES } from "../lib/categories";
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer'; // Expo polyfills Buffer
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import Constants from 'expo-constants';
 
@@ -291,21 +292,39 @@ export const generateNagAudio = async (item: string, amount: number, category: s
  * @param imageData A base64 encoded string of the receipt image.
  * @returns A Promise that resolves to an object with the extracted item, amount, and category.
  */
-export const analyzeReceipt = async (imageData: string): Promise<{ item: string; amount: number; category: string; }> => {
+export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
+  
+  // Resize & compress BEFORE BASE64 conversion
+  const resized = await ImageManipulator.manipulateAsync(
+    imageUri,
+    [{ resize: { width: 1000} }],
+    {
+      compress: 0.5,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+
+  if (!resized.base64) {
+    throw new Error("Failed to convert image");
+  }
+
+  const base64Image = resized.base64;
   const model = "gemini-2.5-flash";
+  
   const allCategories = Object.values(CATEGORIES).flat();
 
-  const systemInstruction = `You are an intelligent receipt scanner. Analyze the provided image of a receipt or checkout screen. Your task is to extract the key details and return them in a clean JSON format.
+  const systemInstruction = `You are an intelligent receipt scanner. Please analyze the provided image of a receipt or checkout screen. Your task is to extract the key details and return them in a clean JSON format.
   - "item": Find the most prominent item or a concise summary if there are many (e.g., "Groceries from Market Co.", "Electronics order"). Do not list every single item.
   - "amount": Find the final total amount paid. It's usually labeled "Total", "Grand Total", or is the largest number at the bottom. Extract only the number.
   - "category": Based on the items and store name, classify the purchase into one of the following valid categories: ${allCategories.join(', ')}. Pick the most appropriate one.
-  Your response must be only the JSON object.`;
+  Your response must be only the JSON object. Thank you`;
   
   // Create the image part for the multimodal prompt.
   const imagePart = {
     inlineData: {
       mimeType: 'image/jpeg',
-      data: imageData,
+      data: base64Image,
     },
   };
   

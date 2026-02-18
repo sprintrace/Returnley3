@@ -411,23 +411,32 @@ export default function App() {
     }
   };
   
-  const handleReceiptScanConfirm = async (imageData: string) => {
+  const handleReceiptScanConfirm = async (imageUri: string) => {
     setIsScannerOpen(false);
     setIsLoading(true);
     setLoadingMessage('Returnley is analyzing...');
     setError(null);
+
     try {
-      const result = await analyzeReceipt(imageData);
+      const result = await analyzeReceipt(imageUri);
+
+      if (!result) {
+        throw new Error("No receipt data returned");
+      }
+
       setPrefilledData({
-        item: result.item,
-        amount: result.amount,
-        category: result.category,
+        item: result.item ?? '',
+        amount: result.amount ?? '',
+        category: result.category ?? '',
       });
+
       setIsModalOpen(true);
-    } catch (err) {
-      console.error(err);
+    } 
+    catch (err) {
+      console.error("Receipt analysis failed:", err);
       setError('Could not read the receipt. Please enter the details manually.');
-    } finally {
+    } 
+    finally {
       setIsLoading(false);
     }
   };
