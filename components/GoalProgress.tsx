@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ProgressBarAndroid } from 'react-native';
 
 interface GoalProgressProps {
   currentSaved: number; // This is now the 40% allocation
@@ -32,108 +32,313 @@ export const GoalProgress: React.FC<GoalProgressProps> = ({ currentSaved, totalR
   };
 
   return (
-    <div className="bg-gray-800/50 rounded-lg shadow-xl p-6 mb-6">
+    <View style={styles.cardContainer}>
       {isEditing ? (
-        <div className="space-y-4 animate-fadeIn">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-semibold text-gray-200">Update Your Goal</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Goal Name</label>
-              <input
-                type="text"
+        <View style={styles.editingContainer}>
+          <View style={styles.editHeader}>
+            <Text style={styles.editTitle}>Update Your Goal</Text>
+          </View>
+          <View style={styles.formRow}>
+            <View style={styles.formColumn}>
+              <Text style={styles.label}>Goal Name</Text>
+              <TextInput
                 value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                onChangeText={setEditName}
+                style={styles.textInput}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Target Amount ($)</label>
-              <input
-                type="number"
+            </View>
+            <View style={styles.formColumn}>
+              <Text style={styles.label}>Target Amount ($)</Text>
+              <TextInput
+                keyboardType="numeric"
                 value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                onChangeText={setEditAmount}
+                style={styles.textInput}
               />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2 mt-4">
-            <button 
-              onClick={handleCancel}
-              className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+            </View>
+          </View>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              onPress={handleCancel}
+              style={styles.cancelButton}
             >
-              Cancel
-            </button>
-            <button 
-              onClick={handleSave}
-              className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md font-semibold shadow-md transition-colors"
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              style={styles.saveButton}
             >
-              Save Goal
-            </button>
-          </div>
-        </div>
+              <Text style={styles.saveButtonText}>Save Goal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <>
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Goal Fund (40% of Returns)</h3>
-              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 mt-1">
+          <View style={styles.displayHeader}>
+            <View>
+              <Text style={styles.goalFundTitle}>Goal Fund (40% of Returns)</Text>
+              <Text style={styles.currentSavedAmount}>
                 ${currentSaved.toFixed(2)}
-              </p>
-            </div>
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="text-xs text-purple-400 hover:text-purple-300 underline"
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setIsEditing(true)}
+              style={styles.editGoalButton}
             >
-              Edit Goal
-            </button>
-          </div>
+              <Text style={styles.editGoalButtonText}>Edit Goal</Text>
+            </TouchableOpacity>
+          </View>
 
-          <div className="space-y-2 mb-6">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-300">Goal: <span className="font-semibold text-white">{goalName}</span></span>
-              <span className="text-gray-400">${goalAmount.toLocaleString()}</span>
-            </div>
+          <View style={styles.progressSection}>
+            <View style={styles.goalDetails}>
+              <Text style={styles.goalText}>Goal: <Text style={styles.goalNameText}>{goalName}</Text></Text>
+              <Text style={styles.goalAmountText}>${goalAmount.toLocaleString()}</Text>
+            </View>
             
-            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden shadow-inner">
-              <div 
-                className="bg-gradient-to-r from-purple-600 to-pink-500 h-4 rounded-full transition-all duration-1000 ease-out relative"
-                style={{ width: `${progressPercentage}%` }}
-              >
-                 {progressPercentage > 5 && (
-                   <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                 )}
-              </div>
-            </div>
+            {/* Using View with width for progress bar approximation */}
+            <View style={styles.progressBarBackground}>
+              <View style={[styles.progressBarFill, { width: `${progressPercentage}%` }]} />
+            </View>
             
-            <div className="flex justify-end">
-              <span className="text-xs text-gray-400">
+            <View style={styles.progressPercentageContainer}>
+              <Text style={styles.progressPercentageText}>
                 {progressPercentage.toFixed(1)}% Completed
-              </span>
-            </div>
-          </div>
+              </Text>
+            </View>
+          </View>
 
           {/* New Breakdown Section */}
-          <div className="grid grid-cols-2 gap-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
-             <div className="text-center border-r border-gray-700">
-                <p className="text-xs text-gray-500 uppercase">Back to Bank (60%)</p>
-                <p className="text-xl font-bold text-green-400">${bankRefund.toFixed(2)}</p>
-             </div>
-             <div className="text-center">
-                <p className="text-xs text-gray-500 uppercase">Total Returned</p>
-                <p className="text-lg font-semibold text-gray-300">${totalReturned.toFixed(2)}</p>
-             </div>
-          </div>
+          <View style={styles.breakdownContainer}>
+             <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownTitle}>Back to Bank (60%)</Text>
+                <Text style={styles.breakdownValueGreen}>${bankRefund.toFixed(2)}</Text>
+             </View>
+             <View style={styles.breakdownItemNoBorder}>
+                <Text style={styles.breakdownTitle}>Total Returned</Text>
+                <Text style={styles.breakdownValue}>${totalReturned.toFixed(2)}</Text>
+             </View>
+          </View>
 
           {progressPercentage >= 100 && (
-             <div className="mt-4 p-3 bg-green-900/30 border border-green-700/50 rounded-lg text-center animate-bounce">
-                <p className="text-green-300 font-bold">🎉 Goal Achieved! You are amazing!</p>
-                <p className="text-xs text-green-400">Time to set a bigger target?</p>
-             </div>
+             <View style={styles.goalAchievedMessage}>
+                <Text style={styles.goalAchievedText}>🎉 Goal Achieved! You are amazing!</Text>
+                <Text style={styles.goalAchievedSubText}>Time to set a bigger target?</Text>
+             </View>
           )}
         </>
       )}
-    </div>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  cardContainer: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-xl (approximated)
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    padding: 24, // p-6
+    marginBottom: 24, // mb-6
+  },
+  editingContainer: {
+    // space-y-4 (simulated by margins)
+  },
+  editHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8, // mb-2
+  },
+  editTitle: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: '#E5E7EB', // text-gray-200
+  },
+  formRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16, // gap-4 (approx)
+  },
+  formColumn: {
+    width: '48%', // grid-cols-2 (approx)
+  },
+  label: {
+    fontSize: 12, // text-xs
+    fontWeight: '500', // font-medium
+    color: '#9CA3AF', // text-gray-400
+    marginBottom: 4, // mb-1
+  },
+  textInput: {
+    width: '100%', // w-full
+    backgroundColor: '#111827', // bg-gray-900
+    borderColor: '#374151', // border border-gray-700
+    borderWidth: 1,
+    borderRadius: 6, // rounded-md
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 12, // px-3
+    color: 'white', // text-white
+    fontSize: 16,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16, // mt-4
+  },
+  cancelButton: {
+    paddingHorizontal: 12, // px-3
+    paddingVertical: 8, // py-1.5
+    marginRight: 8, // space-x-2
+  },
+  cancelButtonText: {
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+  },
+  saveButton: {
+    paddingHorizontal: 16, // px-4
+    paddingVertical: 8, // py-1.5
+    backgroundColor: '#7C3AED', // bg-purple-600
+    borderRadius: 6, // rounded-md
+    shadowColor: '#000', // shadow-md
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2.62,
+    elevation: 4,
+  },
+  saveButtonText: {
+    fontSize: 14, // text-sm
+    color: 'white', // text-white
+    fontWeight: '600', // font-semibold
+  },
+  displayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16, // mb-4
+  },
+  goalFundTitle: {
+    fontSize: 12, // text-sm
+    fontWeight: '500', // font-medium
+    color: '#9CA3AF', // text-gray-400
+    textTransform: 'uppercase', // uppercase
+    letterSpacing: 0.5, // tracking-wider
+  },
+  currentSavedAmount: {
+    fontSize: 36, // text-4xl
+    fontWeight: 'bold', // font-bold
+    color: '#A78BFA', // approximated gradient from-purple-400 to-pink-500
+    marginTop: 4, // mt-1
+  },
+  editGoalButton: {
+    // No specific styling needed for the touchable opacity, just its text
+  },
+  editGoalButtonText: {
+    fontSize: 12, // text-xs
+    color: '#A78BFA', // text-purple-400
+    textDecorationLine: 'underline', // underline
+  },
+  progressSection: {
+    marginBottom: 24, // mb-6
+  },
+  goalDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8, // space-y-2 (top part)
+  },
+  goalText: {
+    fontSize: 14, // text-sm
+    color: '#D1D5DB', // text-gray-300
+  },
+  goalNameText: {
+    fontWeight: '600', // font-semibold
+    color: 'white', // text-white
+  },
+  goalAmountText: {
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+  },
+  progressBarBackground: {
+    width: '100%', // w-full
+    backgroundColor: '#4B5563', // bg-gray-700
+    borderRadius: 20, // rounded-full (approx h-4)
+    height: 16, // h-4
+    overflow: 'hidden', // overflow-hidden
+    shadowColor: '#000', // shadow-inner (approximated)
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+  },
+  progressBarFill: {
+    height: '100%', // h-4
+    backgroundColor: '#A78BFA', // approximated gradient from-purple-600 to-pink-500
+    borderRadius: 20,
+    // transition-all duration-1000 ease-out (React Native animations would be needed for this)
+    // relative + inset-0 bg-white/20 animate-pulse (React Native animations needed)
+  },
+  progressPercentageContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  progressPercentageText: {
+    fontSize: 12, // text-xs
+    color: '#9CA3AF', // text-gray-400
+  },
+  breakdownContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(17, 24, 39, 0.5)', // bg-gray-900/50
+    borderRadius: 8, // rounded-lg
+    padding: 12, // p-3
+    borderWidth: 1, // border
+    borderColor: 'rgba(55, 65, 81, 0.5)', // border-gray-700/50
+    // gap-4 (simulated by margin or padding in items)
+  },
+  breakdownItem: {
+    flex: 1, // grid-cols-2
+    alignItems: 'center', // text-center
+    borderRightWidth: 1, // border-r
+    borderColor: '#4B5563', // border-gray-700
+    paddingHorizontal: 8,
+  },
+  breakdownItemNoBorder: {
+    flex: 1, // grid-cols-2
+    alignItems: 'center', // text-center
+    paddingHorizontal: 8,
+  },
+  breakdownTitle: {
+    fontSize: 12, // text-xs
+    color: '#9CA3AF', // text-gray-500
+    textTransform: 'uppercase',
+  },
+  breakdownValueGreen: {
+    fontSize: 20, // text-xl
+    fontWeight: 'bold', // font-bold
+    color: '#34D399', // text-green-400
+  },
+  breakdownValue: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: '#D1D5DB', // text-gray-300
+  },
+  goalAchievedMessage: {
+    marginTop: 16, // mt-4
+    padding: 12, // p-3
+    backgroundColor: 'rgba(4, 120, 87, 0.3)', // bg-green-900/30
+    borderWidth: 1, // border
+    borderColor: 'rgba(52, 211, 153, 0.5)', // border-green-700/50
+    borderRadius: 8, // rounded-lg
+    alignItems: 'center', // text-center
+    // animate-bounce (React Native animations needed)
+  },
+  goalAchievedText: {
+    color: '#6EE7B7', // text-green-300
+    fontWeight: 'bold', // font-bold
+  },
+  goalAchievedSubText: {
+    fontSize: 12, // text-xs
+    color: '#34D399', // text-green-400
+  },
+});

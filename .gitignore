@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+gemini.md
+
+# User directories and files
+.env
+android/
+ios/
+.expo/

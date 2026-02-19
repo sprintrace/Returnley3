@@ -1,13 +1,5 @@
 import React, { useCallback, useState } from 'react';
-
-// Plaid is typically loaded from a script tag in index.html.
-// This global declaration allows TypeScript to know about the `window.Plaid` object.
-// It's kept here for context, even though the implementation is currently a mock.
-declare global {
-  interface Window {
-    Plaid: any;
-  }
-}
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 
 /**
  * Props for the PlaidLinkButton component.
@@ -42,12 +34,41 @@ export const PlaidLinkButton: React.FC<PlaidLinkButtonProps> = ({ onSuccess }) =
   }, [onSuccess]);
 
   return (
-    <button
-      onClick={handleClick}
+    <TouchableOpacity
+      onPress={handleClick}
       disabled={isConnecting}
-      className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105"
+      style={[styles.button, isConnecting && styles.buttonDisabled]}
     >
-      {isConnecting ? 'Connecting...' : 'Connect Your Bank'}
-    </button>
+      {isConnecting ? (
+        <ActivityIndicator color="#FFFFFF" />
+      ) : (
+        <Text style={styles.buttonText}>Connect Your Bank</Text>
+      )}
+    </TouchableOpacity>
   );
 };
+
+const styles = StyleSheet.create({
+  button: {
+    backgroundColor: '#059669', // bg-green-600
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 16, // px-4
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-md
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#4B5563', // disabled:bg-gray-600
+    opacity: 0.7, // disabled:opacity-50 (added for visual feedback)
+  },
+  buttonText: {
+    color: 'white', // text-white
+    fontWeight: 'bold', // font-bold
+    fontSize: 16,
+  },
+});

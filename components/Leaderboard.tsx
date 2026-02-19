@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 /**
  * Props for the Leaderboard component.
@@ -42,15 +43,15 @@ const createMonthlyFakeEntries = (): Omit<LeaderboardEntry, 'isUser'>[] => [
 /**
  * Determines a user's rank title and color based on their savings amount.
  * @param savings The amount of money saved.
- * @returns An object with the rank title and a Tailwind CSS color class.
+ * @returns An object with the rank title and a hex color string.
  */
 const getSavingsRank = (savings: number): { title: string, color: string } => {
-  if (savings > 2000) return { title: 'Financial Champion', color: 'text-yellow-400' };
-  if (savings > 1200) return { title: 'Savings Sensei', color: 'text-purple-400' };
-  if (savings > 600) return { title: 'Return Pro', color: 'text-blue-400' };
-  if (savings > 200) return { title: 'Mindful Spender', color: 'text-green-400' };
-  if (savings > 0) return { title: 'Return Rookie', color: 'text-teal-400' };
-  return { title: 'Getting Started', color: 'text-gray-400' };
+  if (savings > 2000) return { title: 'Financial Champion', color: '#FCD34D' }; // text-yellow-400
+  if (savings > 1200) return { title: 'Savings Sensei', color: '#A78BFA' }; // text-purple-400
+  if (savings > 600) return { title: 'Return Pro', color: '#60A5FA' }; // text-blue-400
+  if (savings > 200) return { title: 'Mindful Spender', color: '#34D399' }; // text-green-400
+  if (savings > 0) return { title: 'Return Rookie', color: '#2DD4BF' }; // text-teal-400
+  return { title: 'Getting Started', color: '#9CA3AF' }; // text-gray-400
 };
 
 /**
@@ -88,61 +89,204 @@ export const Leaderboard: React.FC<LeaderboardProps> = React.memo(({ userOverall
   const userRank = getSavingsRank(view === 'monthly' ? userMonthlySavings : userOverallSavings);
 
   return (
-    <div className="space-y-6">
+    <View style={styles.container}>
        {/* User's Rank Card */}
-       <div className="bg-gray-800/50 rounded-lg shadow-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-gray-300">Your Current Rank {view === 'monthly' && '(This Month)'}</h3>
-            <p className={`text-4xl font-bold mt-2 ${userRank.color}`}>
+       <View style={styles.rankCard}>
+            <Text style={styles.rankCardTitle}>Your Current Rank {view === 'monthly' && '(This Month)'}</Text>
+            <Text style={[styles.rankCardRank, { color: userRank.color }]}>
                 {userRank.title}
-            </p>
-            <p className="text-sm text-gray-400 mt-1">Keep returning to climb the ranks!</p>
-        </div>
+            </Text>
+            <Text style={styles.rankCardSubtitle}>Keep returning to climb the ranks!</Text>
+        </View>
 
       {/* Leaderboard Table */}
-      <div className="bg-gray-800/50 rounded-lg shadow-xl">
-        <div className="flex justify-between items-center p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Savings Leaderboard</h2>
+      <View style={styles.leaderboardTable}>
+        <View style={styles.tableHeader}>
+          <Text style={styles.tableTitle}>Savings Leaderboard</Text>
           {/* View Toggle (Monthly/Overall) */}
-          <div className="bg-gray-700 p-1 rounded-lg flex space-x-1">
-            <button
-              onClick={() => setView('monthly')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                view === 'monthly' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-gray-600'
-              }`}
+          <View style={styles.toggleButtonGroup}>
+            <TouchableOpacity
+              onPress={() => setView('monthly')}
+              style={[
+                styles.toggleButton,
+                view === 'monthly' ? styles.toggleButtonActive : styles.toggleButtonInactive
+              ]}
             >
-              Monthly
-            </button>
-            <button
-              onClick={() => setView('overall')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                view === 'overall' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-gray-600'
-              }`}
+              <Text style={[
+                styles.toggleButtonText,
+                view === 'monthly' ? styles.toggleButtonTextActive : styles.toggleButtonTextInactive
+              ]}>
+                Monthly
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setView('overall')}
+              style={[
+                styles.toggleButton,
+                view === 'overall' ? styles.toggleButtonActive : styles.toggleButtonInactive
+              ]}
             >
-              Overall
-            </button>
-          </div>
-        </div>
-        <ul className="divide-y divide-gray-700">
+              <Text style={[
+                styles.toggleButtonText,
+                view === 'overall' ? styles.toggleButtonTextActive : styles.toggleButtonTextInactive
+              ]}>
+                Overall
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.listContainer}>
           {currentLeaderboard.map((entry, index) => (
-            <li
+            <View
               key={entry.name + view} // Key includes `view` to ensure React re-renders the list on toggle.
-              className={`flex items-center justify-between p-4 ${
-                entry.isUser ? 'bg-purple-900/40' : '' // Highlight the user's row.
-              }`}
+              style={[
+                styles.listItem,
+                entry.isUser && styles.userListItem
+              ]}
             >
-              <div className="flex items-center">
-                <span className="text-lg font-bold text-gray-400 w-8">{index + 1}</span>
-                <span className={`font-semibold ${entry.isUser ? 'text-purple-300' : 'text-white'}`}>
+              <View style={styles.listItemLeft}>
+                <Text style={styles.listItemRank}>{index + 1}</Text>
+                <Text style={[styles.listItemName, entry.isUser ? styles.userListItemName : styles.otherListItemName]}>
                   {entry.name}
-                </span>
-              </div>
-              <span className={`font-bold text-lg ${entry.isUser ? 'text-white' : 'text-green-400'}`}>
+                </Text>
+              </View>
+              <Text style={[styles.listItemSavings, entry.isUser ? styles.userListItemSavings : styles.otherListItemSavings]}>
                 ${entry.savings.toFixed(2)}
-              </span>
-            </li>
+              </Text>
+            </View>
           ))}
-        </ul>
-      </div>
-    </div>
+        </View>
+      </View>
+    </View>
   );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    // space-y-6 roughly translated to padding on parent and margins on children
+    flex: 1,
+    padding: 24,
+  },
+  rankCard: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-xl
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    padding: 24, // p-6
+    alignItems: 'center', // text-center
+    marginBottom: 24, // space-y-6
+  },
+  rankCardTitle: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: '#D1D5DB', // text-gray-300
+  },
+  rankCardRank: {
+    fontSize: 36, // text-4xl
+    fontWeight: 'bold', // font-bold
+    marginTop: 8, // mt-2
+  },
+  rankCardSubtitle: {
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+    marginTop: 4, // mt-1
+  },
+  leaderboardTable: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000', // shadow-xl
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  tableHeader: {
+    flexDirection: 'row', // flex
+    justifyContent: 'space-between', // justify-between
+    alignItems: 'center', // items-center
+    padding: 16, // p-4
+    borderBottomWidth: 1, // border-b
+    borderColor: '#374151', // border-gray-700
+  },
+  tableTitle: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: 'white',
+  },
+  toggleButtonGroup: {
+    backgroundColor: '#4B5563', // bg-gray-700
+    padding: 4, // p-1
+    borderRadius: 8, // rounded-lg
+    flexDirection: 'row', // flex
+    // space-x-1 (marginRight on buttons)
+  },
+  toggleButton: {
+    paddingHorizontal: 12, // px-3
+    paddingVertical: 4, // py-1
+    borderRadius: 6, // rounded-md
+    // transition-colors (handled by TouchableOpacity feedback)
+  },
+  toggleButtonActive: {
+    backgroundColor: '#7C3AED', // bg-purple-600
+  },
+  toggleButtonInactive: {
+    // hover:bg-gray-600 (handled by TouchableOpacity feedback)
+  },
+  toggleButtonText: {
+    fontSize: 12, // text-xs
+    fontWeight: '600', // font-semibold
+  },
+  toggleButtonTextActive: {
+    color: 'white', // text-white
+  },
+  toggleButtonTextInactive: {
+    color: '#D1D5DB', // text-gray-300
+  },
+  listContainer: {
+    // divide-y divide-gray-700 (borderBottomWidth on list items)
+  },
+  listItem: {
+    flexDirection: 'row', // flex
+    alignItems: 'center', // items-center
+    justifyContent: 'space-between', // justify-between
+    padding: 16, // p-4
+    borderBottomWidth: 1, // divide-y
+    borderColor: '#374151', // divide-gray-700
+  },
+  userListItem: {
+    backgroundColor: 'rgba(126, 34, 206, 0.4)', // bg-purple-900/40
+  },
+  listItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listItemRank: {
+    fontSize: 18, // text-lg
+    fontWeight: 'bold', // font-bold
+    color: '#9CA3AF', // text-gray-400
+    width: 32, // w-8
+    marginRight: 8,
+  },
+  listItemName: {
+    fontWeight: '600', // font-semibold
+  },
+  userListItemName: {
+    color: '#D8B4FE', // text-purple-300
+  },
+  otherListItemName: {
+    color: 'white', // text-white
+  },
+  listItemSavings: {
+    fontWeight: 'bold', // font-bold
+    fontSize: 18, // text-lg
+  },
+  userListItemSavings: {
+    color: 'white', // text-white
+  },
+  otherListItemSavings: {
+    color: '#34D399', // text-green-400
+  },
 });

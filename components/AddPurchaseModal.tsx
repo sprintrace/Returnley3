@@ -1,5 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { CATEGORIES } from '../lib/categories';
 import { Transaction } from '../types';
 import { FAST_FOOD_KEYWORDS } from '../lib/keywords';
@@ -77,8 +78,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
    * Handles the form submission event.
    * Performs validation and calls the `onSubmit` prop with the form data.
    */
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     // Basic validation
     if (!item || !amount || !category) {
       setError('All fields are required.');
@@ -103,189 +103,388 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
   };
 
   return (
-    // Modal backdrop
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-40" onClick={onClose}>
-      {/* Modal content container */}
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4 border border-gray-700" onClick={e => e.stopPropagation()}>
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={true} // Modal is always visible when rendered
+      // For Android back button
+      onRequestClose={onClose} >
+      <TouchableOpacity 
+        style={styles.modalBackdrop} 
+        activeOpacity={1} 
+        // Close when tapping outside
+        onPressOut={onClose} >
+        <View style={styles.modalContent} onStartShouldSetResponder={() => true}> {/* Prevent propagation */}
         
-        {/* Toggle between Purchase and Urge */}
-        <div className="flex bg-gray-700 rounded-lg p-1 mb-6">
-            <button
-                type="button"
-                onClick={() => setIsUrgeMode(false)}
-                className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${!isUrgeMode ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-                I Bought This
-            </button>
-            <button
-                type="button"
-                onClick={() => setIsUrgeMode(true)}
-                className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${isUrgeMode ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-                I Want This (Urge)
-            </button>
-        </div>
+          {/* Toggle between Purchase and Urge */}
+          <View style={styles.toggleContainer}>
+              <TouchableOpacity
+                  onPress={() => setIsUrgeMode(false)}
+                  style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}>
+                  <Text style={[styles.toggleButtonText, !isUrgeMode && styles.toggleButtonTextActive]}>
+                      I Bought This
+                  </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                  onPress={() => setIsUrgeMode(true)}
+                  style={[styles.toggleButton, isUrgeMode && styles.toggleButtonActiveIndigo]}>
+                  <Text style={[styles.toggleButtonText, isUrgeMode && styles.toggleButtonTextActive]}>
+                      I Want This (Urge)
+                  </Text>
+              </TouchableOpacity>
+          </View>
 
-        <h2 className="text-2xl font-bold mb-4">{isUrgeMode ? 'Log a Purchase Urge' : (initialData ? 'Confirm Your Purchase' : 'Log a New Purchase')}</h2>
-        
-        {isUrgeMode && (
-            <p className="text-sm text-indigo-300 mb-4 bg-indigo-900/40 p-2 rounded">
-                The 24-hour rule: Log it now, wait a day. Returnley will analyze if it's worth it.
-            </p>
-        )}
-
-        {error && <p className="text-red-400 mb-4">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+          <Text style={styles.modalTitle}>
+              {isUrgeMode ? 'Log a Purchase Urge' : (initialData ? 'Confirm Your Purchase' : 'Log a New Purchase')}
+          </Text>
           
-          {/* Informational message for fast food items */}
-          {isFastFood && !isUrgeMode && (
-            <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm px-3 py-2 rounded-md">
-              <p><span className="font-bold">Note:</span> Fast food items are often non-refundable.</p>
-            </div>
+          {isUrgeMode && (
+              <Text style={styles.urgeMessage}>
+                  The 24-hour rule: Log it now, wait a day. Returnley will analyze if it's worth it.
+              </Text>
           )}
-          
-          <div>
-            <label htmlFor="item" className="block text-sm font-medium text-gray-300">Item Name</label>
-            <input
-              type="text"
-              id="item"
-              value={item}
-              onChange={e => setItem(e.target.value)}
-              className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-              placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-300">Amount ($)</label>
-            <input
-              type="number"
-              id="amount"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-              placeholder="e.g., 1599.99"
-              step="0.01"
-              min="0.01"
-              required
-            />
-          </div>
-          
-          {/* Emotional Context - Priority 1 Feature */}
-          <div>
-            <label htmlFor="emotion" className="block text-sm font-medium text-gray-300">How are you feeling?</label>
-            <select
-                id="emotion"
-                value={emotionalContext}
-                onChange={e => setEmotionalContext(e.target.value)}
-                className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-            >
-                {EMOTIONS.map(e => (
-                    <option key={e} value={e}>{e}</option>
-                ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Being honest helps the AI understand your triggers.</p>
-          </div>
 
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-300">Category</label>
-            <select
-              id="category"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-              required
-            >
-              <option value="" disabled>Select a category</option>
-              {Object.entries(CATEGORIES).map(([group, options]) => (
-                <optgroup key={group} label={group}>
-                  {options.map(option => (
-                    <option key={option} value={option}>{option}</option>
+          {error && <Text style={styles.errorMessage}>{error}</Text>}
+          <View style={styles.form}>
+            
+            {/* Informational message for fast food items */}
+            {isFastFood && !isUrgeMode && (
+              <View style={styles.fastFoodMessageContainer}>
+                <Text style={styles.fastFoodMessageText}>
+                  <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable.
+                </Text>
+              </View>
+            )}
+            
+            <View>
+              <Text style={styles.label}>Item Name</Text>
+              <TextInput
+                id="item"
+                value={item}
+                onChangeText={setItem}
+                style={styles.input}
+                placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
+                placeholderTextColor="#9CA3AF" // gray-400
+                required/>
+            </View>
+            <View>
+              <Text style={styles.label}>Amount ($)</Text>
+              <TextInput
+                id="amount"
+                value={amount}
+                onChangeText={setAmount}
+                style={styles.input}
+                placeholder="e.g., 1599.99"
+                placeholderTextColor="#9CA3AF" // gray-400
+                keyboardType="numeric"
+                required/>
+            </View>
+            
+            {/* Emotional Context */}
+            <View>
+              <Text style={styles.label}>How are you feeling?</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                    selectedValue={emotionalContext}
+                    onValueChange={(itemValue) => setEmotionalContext(itemValue)}
+                    style={styles.picker}
+                    itemStyle={styles.pickerItem}>
+                    {EMOTIONS.map(e => (
+                        <Picker.Item key={e} label={String(e)} value={e} />
+                    ))}
+                </Picker>
+              </View>
+              <Text style={styles.hintText}>Being honest helps the AI understand your triggers.</Text>
+            </View>
+
+            <View>
+              <Text style={styles.label}>Category</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={category}
+                  onValueChange={(itemValue) => setCategory(itemValue)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}>
+                  <Picker.Item label="Select a category" value="" enabled={false} />
+                  {Object.values(CATEGORIES).flat().map(option => (
+                    <Picker.Item key={option} label={String(option)} value={option} />
                   ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+                </Picker>
+              </View>
+            </View>
 
-          {/* Hide Final Sale toggle in Urge Mode (assumed returnable/not bought) */}
-          {!isUrgeMode && (
-              <div className="flex items-center">
-               <input
-                id="final-sale"
-                name="final-sale"
-                type="checkbox"
-                checked={isFinalSale}
-                onChange={e => setIsFinalSale(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
-                disabled={category === 'Fast Food'}
-              />
-              <label htmlFor="final-sale" className={`ml-2 block text-sm ${category === 'Fast Food' ? 'text-gray-500' : 'text-gray-300'}`}>
-                This is a final sale item (cannot be returned)
-              </label>
-            </div>
-          )}
+            {/* Hide Final Sale toggle in Urge Mode (assumed returnable/not bought) */}
+            {!isUrgeMode && (
+                <View style={styles.switchContainer}>
+                  <Switch
+                    onValueChange={setIsFinalSale}
+                    value={isFinalSale}
+                    disabled={category === 'Fast Food'}
+                    trackColor={{ false: "#767577", true: "#81b0ff" }}
+                    thumbColor={isFinalSale ? "#f5dd4b" : "#f4f3f4"}
+                    ios_backgroundColor="#3e3e3e"/>
+                  <Text style={[styles.switchLabel, category === 'Fast Food' && styles.disabledText]}>
+                    This is a final sale item (cannot be returned)
+                  </Text>
+                </View>
+            )}
 
-             <div className="flex items-center">
-               <input
-                id="is-investment"
-                name="is-investment"
-                type="checkbox"
-                checked={isInvestment}
-                onChange={e => setIsInvestment(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-500 bg-gray-700 text-purple-600 focus:ring-purple-500"
-              />
-              <label htmlFor="is-investment" className="ml-2 block text-sm text-gray-300">
+            <View style={styles.switchContainer}>
+              <Switch
+                onValueChange={setIsInvestment}
+                value={isInvestment}
+                trackColor={{ false: "#767577", true: "#81b0ff" }}
+                thumbColor={isInvestment ? "#f5dd4b" : "#f4f3f4"}
+                ios_backgroundColor="#3e3e3e"/>
+              <Text style={styles.switchLabel}>
                 Justify as an investment (education/monetization)
-              </label>
-            </div>
+              </Text>
+            </View>
 
-           {isInvestment && (
-              <div>
-                <label htmlFor="justification" className="block text-sm font-medium text-gray-300">Justification</label>
-                <textarea
-                  id="justification"
-                  value={justification}
-                  onChange={e => setJustification(e.target.value)}
-                  className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="e.g., This camera will help my YouTube channel."
-                  rows={2}
-                  required
-                />
-              </div>
-           )}
+             {isInvestment && (
+                <View>
+                  <Text style={styles.label}>Justification</Text>
+                  <TextInput
+                    id="justification"
+                    value={justification}
+                    onChangeText={setJustification}
+                    style={[styles.input, styles.textarea]}
+                    placeholder="e.g., This camera will help my YouTube channel."
+                    placeholderTextColor="#9CA3AF" // gray-400
+                    multiline={true}
+                    numberOfLines={Platform.OS === 'ios' ? undefined : 2}
+                    minHeight={Platform.OS === 'ios' ? 60 : undefined}
+                    required/>
+                </View>
+             )}
 
-          {!isUrgeMode && (
-              <div>
-                <label htmlFor="return-by" className={`block text-sm font-medium ${isFinalSale ? 'text-gray-500' : 'text-gray-300'}`}>Return By Date (Optional)</label>
-                <input
-                  type="date"
-                  id="return-by"
-                  value={returnBy}
-                  onChange={e => setReturnBy(e.target.value)}
-                  className={`mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${isFinalSale ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={isFinalSale}
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
-          )}
+            {!isUrgeMode && (
+                <View>
+                  <Text style={[styles.label, isFinalSale && styles.disabledText]}>Return By Date (Optional)</Text>
+                  <TextInput
+                    // TODO: Implement date picker
+                    id="return-by"
+                    value={returnBy}
+                    onChangeText={setReturnBy}
+                    style={[styles.input, isFinalSale && styles.disabledInput]}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#9CA3AF" // gray-400
+                    editable={!isFinalSale}/>
+                </View>
+            )}
 
-          <div className="flex justify-end space-x-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-2 px-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg shadow-md"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={`py-2 px-4 text-white font-semibold rounded-lg shadow-md ${isUrgeMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700'}`}
-            >
-              {isUrgeMode ? 'Log Urge' : 'Submit Purchase'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.cancelButton}>
+                <Text style={styles.buttonText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSubmit}
+                style={[styles.submitButton, isUrgeMode ? styles.submitButtonUrge : styles.submitButtonPurchase]}>
+                <Text style={styles.buttonText}>
+                  {isUrgeMode ? 'Log Urge' : 'Submit Purchase'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1F2937', // bg-gray-800
+    borderRadius: 8, // rounded-lg
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    padding: 24, // p-6
+    width: '90%', // w-full max-w-md
+    maxWidth: 400,
+    borderColor: '#374151', // border border-gray-700
+    borderWidth: 1,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#374151', // bg-gray-700
+    borderRadius: 8, // rounded-lg
+    padding: 4, // p-1
+    marginBottom: 24, // mb-6
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 8, // py-2
+    borderRadius: 6, // rounded-md
+    alignItems: 'center',
+  },
+  toggleButtonActivePurple: {
+    backgroundColor: '#7C3AED', // bg-purple-600
+  },
+  toggleButtonActiveIndigo: {
+    backgroundColor: '#4F46E5', // bg-indigo-600
+  },
+  toggleButtonText: {
+    fontSize: 14, // text-sm
+    fontWeight: 'bold', // font-bold
+    color: '#9CA3AF', // text-gray-400
+  },
+  toggleButtonTextActive: {
+    color: 'white', // text-white
+  },
+  modalTitle: {
+    fontSize: 24, // text-2xl
+    fontWeight: 'bold', // font-bold
+    marginBottom: 16, // mb-4
+    color: '#F9FAFB', // text-gray-50
+  },
+  urgeMessage: {
+    fontSize: 14, // text-sm
+    color: '#A5B4FC', // text-indigo-300
+    marginBottom: 16, // mb-4
+    backgroundColor: 'rgba(55, 65, 81, 0.4)', // bg-indigo-900/40
+    padding: 8, // p-2
+    borderRadius: 4, // rounded
+  },
+  errorMessage: {
+    color: '#F87171', // text-red-400
+    marginBottom: 16, // mb-4
+  },
+  form: {
+    // space-y-4 -> marginVertical on children
+  },
+  fastFoodMessageContainer: {
+    backgroundColor: 'rgba(127, 29, 29, 0.4)', // bg-red-900/40
+    borderColor: '#DC2626', // border border-red-700
+    borderWidth: 1,
+    paddingHorizontal: 12, // px-3
+    paddingVertical: 8, // py-2
+    borderRadius: 6, // rounded-md
+    marginBottom: 16, // Assuming space-y-4 for this item means a margin-bottom
+  },
+  fastFoodMessageText: {
+    fontSize: 14, // text-sm
+    color: '#FECACA', // text-red-200
+  },
+  fastFoodMessageTextBold: {
+    fontWeight: 'bold',
+  },
+  label: {
+    fontSize: 14, // text-sm
+    fontWeight: '500', // font-medium
+    color: '#D1D5DB', // text-gray-300
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: '#374151', // bg-gray-700
+    borderColor: '#4B5563', // border border-gray-600
+    borderWidth: 1,
+    borderRadius: 6, // rounded-md
+    shadowColor: '#000', // shadow-sm
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 12, // px-3
+    color: 'white', // text-white
+    fontSize: 16,
+    // focus:outline-none focus:ring-purple-500 focus:border-purple-500 - focus styles need separate handling in RN
+    marginBottom: 16, // Simulating space-y-4
+  },
+  pickerContainer: {
+    backgroundColor: '#374151', // bg-gray-700
+    borderColor: '#4B5563', // border border-gray-600
+    borderWidth: 1,
+    borderRadius: 6,
+    marginBottom: 16, // Simulating space-y-4
+  },
+  picker: {
+    color: 'white', // text-white
+  },
+  pickerItem: {
+    color: 'white',
+    backgroundColor: '#374151',
+  },
+  pickerGroupLabel: {
+    fontWeight: 'bold',
+    color: '#D1D5DB', // text-gray-300
+    backgroundColor: '#1F2937',
+  },
+  hintText: {
+    fontSize: 12, // text-xs
+    color: '#6B7280', // text-gray-500
+    marginTop: -10, // Adjust as needed to align with input
+    marginBottom: 16,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16, // Simulating space-y-4
+  },
+  switchLabel: {
+    marginLeft: 8, // ml-2
+    fontSize: 14, // text-sm
+    color: '#D1D5DB', // text-gray-300
+  },
+  disabledText: {
+    color: '#6B7280', // text-gray-500
+  },
+  textarea: {
+    minHeight: 60, // rows-2 (approximate)
+    textAlignVertical: 'top', // For Android
+  },
+  disabledInput: {
+    opacity: 0.5,
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end', // justify-end
+    marginTop: 16, // pt-4
+  },
+  cancelButton: {
+    backgroundColor: '#4B5563', // bg-gray-600
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 16, // px-4
+    borderRadius: 6, // rounded-lg
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+    marginRight: 16, // space-x-4
+  },
+  submitButton: {
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 16, // px-4
+    borderRadius: 6, // rounded-lg
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+  },
+  submitButtonUrge: {
+    backgroundColor: '#4F46E5', // bg-indigo-600
+  },
+  submitButtonPurchase: {
+    backgroundColor: '#7C3AED', // bg-purple-600
+  },
+  buttonText: {
+    color: 'white', // text-white
+    fontWeight: '600', // font-semibold
+    fontSize: 16,
+  },
+});

@@ -21,6 +21,8 @@ export enum TransactionStatus {
  * Represents a single user purchase record.
  */
 export interface Transaction {
+  /** Indicates if this transaction is a sample/example entry and should be excluded from statistics. */
+  isExample?: boolean;
   /** A unique identifier for the transaction. */
   id: string;
   /** A description of the item purchased. */

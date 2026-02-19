@@ -1,5 +1,8 @@
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator, Alert, Platform } from 'react-native';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
 import { AddPurchaseModal } from './components/AddPurchaseModal';
@@ -16,7 +19,6 @@ import { FAST_FOOD_KEYWORDS } from './lib/keywords';
 
 /**
  * Provides a set of sample transactions for initial state or when history is cleared.
- * @returns An array of sample Transaction objects.
  */
 const getSampleTransactions = (): Transaction[] => {
   const today = new Date();
@@ -40,6 +42,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: true,
       nagCount: 0,
       emotionalContext: 'Neutral / Normal',
+      isExample: true,
     },
     {
       id: 'sample-2',
@@ -51,6 +54,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: false,
       nagCount: 7,
       emotionalContext: 'Celebrating',
+      isExample: true,
     },
     {
       id: 'sample-3',
@@ -61,6 +65,7 @@ const getSampleTransactions = (): Transaction[] => {
       date: yesterday.toISOString().split('T')[0],
       isReturnable: false,
       nagCount: 0,
+      isExample: true,
     },
     {
       id: 'sample-4',
@@ -73,6 +78,7 @@ const getSampleTransactions = (): Transaction[] => {
       returnBy: returnByDate.toISOString().split('T')[0],
       nagCount: 2,
       emotionalContext: 'Excited',
+      isExample: true,
     },
     {
       id: 'sample-5',
@@ -84,6 +90,7 @@ const getSampleTransactions = (): Transaction[] => {
       isReturnable: true,
       nagCount: 0,
       emotionalContext: 'Peer Pressured',
+      isExample: true,
     }
   ];
 };
@@ -115,34 +122,13 @@ export default function App() {
   // --- State Management ---
 
   // Manages the list of all transactions.
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-        const storedTransactions = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (storedTransactions) {
-            const parsed = JSON.parse(storedTransactions) as Transaction[];
-             if (Array.isArray(parsed) && parsed.length > 0) {
-                 return parsed;
-            }
-        }
-    } catch (error) {
-        console.error("Error reading transactions from localStorage", error);
-    }
-    return getSampleTransactions();
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // User Profile State
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-      try {
-          const stored = window.localStorage.getItem(USER_PROFILE_KEY);
-          return stored ? JSON.parse(stored) : null;
-      } catch (e) { return null; }
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Manages the selected AI tone.
-  const [aiTone, setAiTone] = useState<AiTone>(() => {
-    const storedTone = window.localStorage.getItem(AI_TONE_KEY);
-    return (storedTone === 'stern' || storedTone === 'encouraging' || storedTone === 'ruthless') ? storedTone : 'encouraging';
-  });
+  const [aiTone, setAiTone] = useState<AiTone>('encouraging');
 
   // State for controlling modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -150,7 +136,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Global loading and error states
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Returnley is thinking...');
   const [error, setError] = useState<string | null>(null);
 
@@ -167,23 +153,50 @@ export default function App() {
   // --- Side Effects (useEffect) ---
 
   useEffect(() => {
-    try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(transactions));
-    } catch (error) {
-        console.error("Error writing to localStorage", error);
-    }
-  }, [transactions]);
-  
-  useEffect(() => {
-    window.localStorage.setItem(AI_TONE_KEY, aiTone);
-  }, [aiTone]);
+    async function loadData() {
+      try {
+        const storedTransactions = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
+        if (storedTransactions) {
+          const parsed = JSON.parse(storedTransactions) as Transaction[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTransactions(parsed);
+          }
+        } else {
+          setTransactions(getSampleTransactions());
+        }
 
-  useEffect(() => {
-      if (userProfile) {
-          window.localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+        const storedProfile = await AsyncStorage.getItem(USER_PROFILE_KEY);
+        if (storedProfile) {
+          setUserProfile(JSON.parse(storedProfile));
+        }
+
+        const storedTone = await AsyncStorage.getItem(AI_TONE_KEY);
+        if (storedTone) {
+          setAiTone(storedTone as AiTone);
+        }
+      } catch (error) {
+        console.error("Error loading data from AsyncStorage", error);
+      } finally {
+        setIsLoading(false);
       }
-  }, [userProfile]);
+    }
+    loadData();
+  }, []);
 
+  useEffect(() => {
+    async function saveData() {
+      try {
+        await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(transactions));
+        if (userProfile) {
+          await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+        }
+        await AsyncStorage.setItem(AI_TONE_KEY, aiTone);
+      } catch (error) {
+        console.error("Error saving data to AsyncStorage", error);
+      }
+    }
+    saveData();
+  }, [transactions, userProfile, aiTone]);
 
   const updateTransactionStatus = useCallback((id: string, status: TransactionStatus) => {
     setTransactions(prev =>
@@ -246,8 +259,8 @@ export default function App() {
         handleNag(transactionToNag);
       }
     };
-    const intervalId = window.setInterval(tick, 5000); 
-    return () => window.clearInterval(intervalId);
+    const intervalId = setInterval(tick, 5000); 
+    return () => clearInterval(intervalId);
   }, [transactions, isLoading, callState.isActive, aiTone]);
 
 
@@ -257,15 +270,27 @@ export default function App() {
     // Instant reset for dev/debugging speed
     // 1. Clear User Profile (Triggers Onboarding)
     setUserProfile(null);
-    window.localStorage.removeItem(USER_PROFILE_KEY);
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(USER_PROFILE_KEY);
+    } else {
+        AsyncStorage.removeItem(USER_PROFILE_KEY);
+    }
     
     // 2. Reset Transactions to Sample Data
     setTransactions(getSampleTransactions());
-    window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } else {
+        AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
     
     // 3. Reset AI Tone
     setAiTone('encouraging');
-    window.localStorage.removeItem(AI_TONE_KEY);
+    if (Platform.OS === 'web') {
+        window.localStorage.removeItem(AI_TONE_KEY);
+    } else {
+        AsyncStorage.removeItem(AI_TONE_KEY);
+    }
 
     // 4. Reset View
     setActiveTab('recent');
@@ -282,90 +307,108 @@ export default function App() {
 
 
   const handleAddPurchase = async (
-      item: string, 
-      amount: number, 
-      category: string, 
-      isReturnable: boolean, 
-      returnBy?: string, 
-      justification?: string,
-      emotionalContext?: string,
-      isUrge?: boolean
-    ) => {
+    item: string, 
+    amount: number, 
+    category: string, 
+    isReturnable: boolean, 
+    returnBy?: string, 
+    justification?: string,
+    emotionalContext?: string,
+    isUrge?: boolean
+  ) => {
+    // Close modal and clear prefilled data immediately
     setIsModalOpen(false);
     setPrefilledData(null);
 
-    // If it's Fast Food and NOT an Urge, immediate shame.
-    if (isFastFoodPurchase(item, category) && !isReturnable && !isUrge) {
-      const shamefulTransaction: Transaction = {
-        id: Date.now().toString(),
-        item,
-        amount,
-        category: 'Fast Food',
-        status: TransactionStatus.Kept,
-        date: new Date().toISOString().split('T')[0],
-        isReturnable: false,
-        nagCount: MAX_NAGS,
-        justification,
-        emotionalContext
-      };
-      setTransactions(prev => [shamefulTransaction, ...prev]);
+    // Defensive: Ensure required values exist
+    if (!item || !category) {
+      console.error('Item or category missing:', { item, category });
+      setError('Missing item or category.');
       return;
     }
 
+    // Immediate shame logic for Fast Food (non-returnable, non-urge)
+    try {
+      if (isFastFoodPurchase?.(item, category) && !isReturnable && !isUrge) {
+        const shamefulTransaction: Transaction = {
+          id: Date.now().toString(),
+          item,
+          amount,
+          category: 'Fast Food',
+          status: TransactionStatus.Kept,
+          date: new Date().toISOString().split('T')[0],
+          isReturnable: false,
+          nagCount: MAX_NAGS,
+          justification,
+          emotionalContext
+        };
+        setTransactions(prev => [shamefulTransaction, ...prev]);
+        return;
+      } 
+    } catch (err) {
+      console.error('Error checking fast food:', err);
+      setError('Failed to evaluate fast food purchase.');
+      return;
+    }
+
+    // Start loading UI
     setIsLoading(true);
     setLoadingMessage(isUrge ? 'Analyzing your urge...' : 'Returnley is thinking...');
     setError(null);
 
     try {
       const result = await analyzePurchaseAndGenerateAudio(
-          item, 
-          amount, 
-          category, 
-          isReturnable, 
-          returnBy, 
-          justification, 
-          aiTone, 
-          userProfile || undefined, // Pass user profile
-          emotionalContext,
-          isUrge
-        );
+        item, 
+        amount, 
+        category, 
+        isReturnable, 
+        returnBy, 
+        justification, 
+        aiTone, 
+        userProfile || undefined, //TODO: Setup user profiles and pass user profile
+        emotionalContext,
+        isUrge
+      );
+
+      const analysis = result?.analysis;
+      const audioUrl = result?.audioUrl;
       
+      // Determine transaction status
       let status = TransactionStatus.Pending;
-      if (isUrge) {
-          status = TransactionStatus.Urge;
-      } else if (result.analysis.isNecessary) {
-          status = TransactionStatus.Approved;
-      }
+      if (isUrge) status = TransactionStatus.Urge;
+      else if (result.analysis.isNecessary) status = TransactionStatus.Approved;
 
       const newTransaction: Transaction = {
         id: Date.now().toString(),
         item,
         amount,
         category,
-        status: status,
+        status,
         date: new Date().toISOString().split('T')[0],
-        isReturnable: isReturnable,
-        returnBy: result.analysis.estimatedReturnBy || returnBy,
+        isReturnable,
+        returnBy: analysis?.estimatedReturnBy || returnBy,
         justification,
         nagCount: 0,
-        emotionalContext: emotionalContext,
-        hotTake: result.analysis.hotTake // Store the hot take if it exists
+        emotionalContext,
+        hotTake: analysis?.hotTake // Store the hot take if it exists
       };
 
       setTransactions(prev => [newTransaction, ...prev]);
 
       // Only trigger the call if it's Unnecessary AND NOT an Urge.
-      if (!result.analysis.isNecessary && !isUrge) {
-        setCallState({
+      if (!analysis?.isNecessary && !isUrge) {
+        setCallState?.({
           isActive: true,
           transaction: newTransaction,
-          analysis: result.analysis,
-          audioUrl: result.audioUrl,
+          analysis,
+          audioUrl,
         });
       }
     } catch (err) {
-      console.error(err);
+      console.error('Analysis failed', err);
+
       setError('Failed to analyze purchase. Flagged for manual review.');
+      
       const failedTransaction: Transaction = {
         id: Date.now().toString(),
         item,
@@ -373,36 +416,46 @@ export default function App() {
         category,
         status: isUrge ? TransactionStatus.Urge : TransactionStatus.Flagged,
         date: new Date().toISOString().split('T')[0],
-        isReturnable: isReturnable,
+        isReturnable,
         returnBy,
         justification,
         nagCount: 0,
         emotionalContext,
         error: 'Analysis failed.'
       };
+      
       setTransactions(prev => [failedTransaction, ...prev]);
     } finally {
       setIsLoading(false);
     }
   };
   
-  const handleReceiptScanConfirm = async (imageData: string) => {
+  const handleReceiptScanConfirm = async (imageUri: string) => {
     setIsScannerOpen(false);
     setIsLoading(true);
     setLoadingMessage('Returnley is analyzing...');
     setError(null);
+
     try {
-      const result = await analyzeReceipt(imageData);
+      const result = await analyzeReceipt(imageUri);
+
+      if (!result) {
+        throw new Error("No receipt data returned");
+      }
+
       setPrefilledData({
-        item: result.item,
-        amount: result.amount,
-        category: result.category,
+        item: result.item ?? '',
+        amount: result.amount ?? '',
+        category: result.category ?? '',
       });
+
       setIsModalOpen(true);
-    } catch (err) {
-      console.error(err);
+    } 
+    catch (err) {
+      console.error("Receipt analysis failed:", err);
       setError('Could not read the receipt. Please enter the details manually.');
-    } finally {
+    } 
+    finally {
       setIsLoading(false);
     }
   };
@@ -474,7 +527,6 @@ export default function App() {
 
             // Trigger the call if unnecessary
             if (!result.analysis.isNecessary) {
-                // We construct a temporary object for the call state to ensure it has the latest status
                 setCallState({
                     isActive: true,
                     transaction: { ...transaction, status: newStatus },
@@ -546,9 +598,7 @@ export default function App() {
       return { ...t, status: newStatus, nagCount: newNagCount, nextNagTimestamp: newTimestamp };
     }));
     
-    if (callState.audioUrl) {
-      URL.revokeObjectURL(callState.audioUrl);
-    }
+    // No need for URL.revokeObjectURL
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
   }, [callState]);
   
@@ -564,195 +614,453 @@ export default function App() {
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
   
   const handleClearHistory = useCallback(() => {
-    if (window.confirm('Are you sure you want to delete all transaction history?')) {
-      setTransactions(getSampleTransactions());
-      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
-      closeSettingsModal();
-    }
+    Alert.alert(
+      'Clear History',
+      'Are you sure you want to delete all transaction history?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setTransactions(getSampleTransactions());
+            try {
+              if (Platform.OS === 'web') {
+                window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+              } else {
+                AsyncStorage.removeItem(LOCAL_STORAGE_KEY);
+              }
+            } catch (error) {
+              console.error("Error clearing history from AsyncStorage", error);
+            }
+            closeSettingsModal();
+          },
+        },
+      ]
+    );
   }, [closeSettingsModal]);
 
 
-  // Filtered Lists
-  const returnedTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned), [transactions]);
-  const shamefulTransactions = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept), [transactions]);
-  // Includes pending, approved, flagged, and urges
-  const recentTransactions = useMemo(() => transactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned), [transactions]);
-  
-  const totalSaved = useMemo(() => returnedTransactions.reduce((sum, transaction) => sum + transaction.amount, 0), [returnedTransactions]);
-  
-  // Calculate the amount allocated to the goal (40% of returns)
-  const goalSaved = useMemo(() => totalSaved * 0.40, [totalSaved]);
+  // Filtered Lists ("Demo" Mode)
+
+  // A flag to determine if the user has any real transactions.
+  const hasRealTransactions = useMemo(() => transactions.some(t => !t.isExample), [transactions]);
+
+  // The master list of transactions to display. If the user has read transactions, we show those.
+  // Otherwise we show the sample transactions.
+  const displayedTransactions = useMemo(() => {
+    return hasRealTransactions ? transactions.filter(t => !t.isExample) : transactions;
+  }, [transactions, hasRealTransactions]);
+
+  // Derived lists of different tabs, based on the master displayedTransactions list/
+  const returnedTransactions = useMemo(() => displayedTransactions.filter(t => t.status === TransactionStatus.Returned), [displayedTransactions]);
+  const shamefulTransactions = useMemo(() => displayedTransactions.filter(t => t.status === TransactionStatus.Kept), [displayedTransactions]);
+  const recentTransactions = useMemo(() => displayedTransactions.filter(t => t.status !== TransactionStatus.Kept && t.status !== TransactionStatus.Returned), [displayedTransactions]);
+
+  // For stat calculations (like Total Saved), we ALWAYS filter out examples.
+  const realReturnedTransactionsForStats = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Returned && !t.isExample), [transactions]);
+  const realShamefulTransactionsForStats = useMemo(() => transactions.filter(t => t.status === TransactionStatus.Kept && !t.isExample), [transactions]);
+
+  const totalSaved = useMemo(() => realReturnedTransactionsForStats.reduce((sum, transaction) => sum + transaction.amount, 0), [realReturnedTransactionsForStats]);
+
+  // For displayed Total Money Saved, we include examples ONLY if there are no real transactions.
+  const displayedTotalSaved = useMemo(() => {
+    return hasRealTransactions
+      ? totalSaved // Use real total if real transactions exist
+      : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample).reduce((sum, transaction) => sum + transaction.amount, 0); // Use example total if only examples
+  }, [hasRealTransactions, transactions, totalSaved]);
+
 
   const monthlySaved = useMemo(() => {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
-    const monthlyReturns = returnedTransactions.filter(t => {
+    const monthlyReturns = realReturnedTransactionsForStats.filter(t => {
       const transactionDate = new Date(t.date);
       return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
     });
     return monthlyReturns.reduce((sum, transaction) => sum + transaction.amount, 0);
-  }, [returnedTransactions]);
+  }, [realReturnedTransactionsForStats]);
+
+  // For badge counts, we include examples ONLY if there are no real transactions.
+  const displayedReturnedTransactionsForBadges = useMemo(() => {
+    return hasRealTransactions
+      ? realReturnedTransactionsForStats
+      : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample);
+  }, [hasRealTransactions, transactions, realReturnedTransactionsForStats]);
+
+  const displayedShamefulTransactionsForBadges = useMemo(() => {
+    return hasRealTransactions
+      ? realShamefulTransactionsForStats
+      : transactions.filter(t => t.status === TransactionStatus.Kept && t.isExample);
+  }, [hasRealTransactions, transactions, realShamefulTransactionsForStats]);
+
+  // Calculate the amount allocated to the goal (40% of returns)
+  const goalSaved = useMemo(() => totalSaved * 0.40, [totalSaved]);
 
 
   // --- Render ---
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col">
-      <Header 
-        onAddPurchase={openAddPurchaseModal} 
-        onScanReceipt={openScannerModal}
-        onOpenSettings={openSettingsModal}
-        onLogoClick={handleDebugReset}
-       />
-      <main className="container mx-auto p-4 md:p-6 flex-grow">
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        {/* Top Title */}
+        <View style={styles.topTitleContainer}>
+          <Text style={styles.topTitleText}>Returnley</Text>
+        </View>
+
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.mainContainer}>
+            
+            {/* Onboarding Modal - Show if no user profile exists */}
+            {!userProfile && (
+                <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
+            )}
+
+            {isLoading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#A78BFA" />
+                <Text style={styles.loadingMessage}>{loadingMessage}</Text>
+              </View>
+            )}
+
+            {error && (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorTitle}>Error: </Text>
+                    <Text style={styles.errorMessage}>{error}</Text>
+                </View>
+            )}
+
+            {/* Tab Navigation */}
+            <View style={styles.tabContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabNav}>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('recent')}
+                    style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'recent' && styles.tabTextActive]}>Journal (Recent & Urges)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('wins')}
+                    style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
+                        Returns
+                      </Text>
+                      {displayedReturnedTransactionsForBadges.length > 0 && (
+                        <View style={styles.badgeContainer}>
+                          <Text style={styles.badgeText}>{displayedReturnedTransactionsForBadges.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('shameful')}
+                    style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
+                        Shame
+                      </Text>
+                      {displayedShamefulTransactionsForBadges.length > 0 && (
+                        <View style={styles.badgeContainerShame}>
+                          <Text style={styles.badgeText}>{displayedShamefulTransactionsForBadges.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('leaderboard')}
+                    style={[styles.tabButton, activeTab === 'leaderboard' && styles.tabButtonActiveLeaderboard]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>
+                      Leaderboard
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('learn')}
+                    style={[styles.tabButton, activeTab === 'learn' && styles.tabButtonActiveLearn]}
+                  >
+                    <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>
+                      Learn
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+            </View>
+
+            {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
+            {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
+            {activeTab === 'wins' && (
+              <View>
+                <View style={styles.totalSavedCard}>
+                  <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
+                  <Text style={styles.totalSavedAmount}>
+                    ${displayedTotalSaved.toFixed(2)}
+                  </Text>
+                  {returnedTransactions.length > 0 && (
+                    <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
+                  )}
+                </View>
+                 <GoalProgress 
+                   currentSaved={goalSaved}
+                   totalReturned={totalSaved} 
+                   goalName={userProfile?.savingsGoal || 'General Savings'} 
+                   goalAmount={userProfile?.goalAmount || 1000}
+                   onUpdateGoal={handleUpdateGoal}
+                />
+                <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
+              </View>
+            )}
+            {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
+            {activeTab === 'learn' && <FinancialLiteracy />}
+          </View>
+        </ScrollView>
+
+        {/* Bottom Navigation Bar */}
+        <View style={styles.bottomNavBar}>
+          <TouchableOpacity
+            onPress={openScannerModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="camera-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Scan Receipt</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openAddPurchaseModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="add-circle-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Add Manually</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openSettingsModal}
+            style={styles.bottomNavButton}
+          >
+            <Ionicons name="settings-outline" size={24} color="white" />
+            <Text style={styles.bottomNavButtonText}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        {isScannerOpen && (
+          <ReceiptScannerModal
+            onClose={() => setIsScannerOpen(false)}
+            onConfirm={handleReceiptScanConfirm}
+          />
+        )}
+
+        {isModalOpen && (
+          <AddPurchaseModal
+            onClose={() => {
+              setIsModalOpen(false);
+              setPrefilledData(null);
+            }}
+            onSubmit={handleAddPurchase}
+            initialData={prefilledData}
+          />
+        )}
         
-        {/* Onboarding Modal - Show if no user profile exists */}
-        {!userProfile && (
-            <OnboardingModal onComplete={(profile) => setUserProfile(profile)} />
+        {isSettingsModalOpen && (
+          <SettingsModal
+            onClose={closeSettingsModal}
+            aiTone={aiTone}
+            onSetAiTone={setAiTone}
+            onClearHistory={handleClearHistory}
+          />
         )}
 
-        {isLoading && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-purple-500 mx-auto"></div>
-              <p className="text-lg mt-4 font-semibold">{loadingMessage}</p>
-            </div>
-          </div>
+        {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && (
+          <IncomingCall
+            transaction={callState.transaction}
+            analysis={callState.analysis}
+            audioUrl={callState.audioUrl}
+            onResolve={handleCallResolve}
+          />
         )}
-
-        {error && (
-            <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg relative mb-4" role="alert">
-                <strong className="font-bold">Error: </strong>
-                <span className="block sm:inline">{error}</span>
-            </div>
-        )}
-
-        {/* Tab Navigation */}
-        <div className="mb-6 overflow-x-auto">
-          <div className="border-b border-gray-700">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-              <button
-                onClick={() => setActiveTab('recent')}
-                className={`${
-                  activeTab === 'recent'
-                    ? 'border-purple-500 text-purple-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}
-              >
-                Journal (Recent & Urges)
-              </button>
-              <button
-                onClick={() => setActiveTab('wins')}
-                className={`${
-                  activeTab === 'wins'
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Returns
-                {returnedTransactions.length > 0 && (
-                  <span className="ml-2 bg-blue-800 text-blue-200 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {returnedTransactions.length}
-                  </span>
-                )}
-              </button>
-              <button
-                 onClick={() => setActiveTab('shameful')}
-                 className={`${
-                   activeTab === 'shameful'
-                     ? 'border-red-500 text-red-400'
-                     : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                 } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Shame
-                {shamefulTransactions.length > 0 && (
-                  <span className="ml-2 bg-red-800 text-red-200 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {shamefulTransactions.length}
-                  </span>
-                )}
-              </button>
-               <button
-                 onClick={() => setActiveTab('leaderboard')}
-                 className={`${
-                   activeTab === 'leaderboard'
-                     ? 'border-yellow-500 text-yellow-400'
-                     : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                 } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Leaderboard
-              </button>
-              <button
-                onClick={() => setActiveTab('learn')}
-                className={`${
-                  activeTab === 'learn'
-                    ? 'border-green-500 text-green-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center`}
-              >
-                Learn
-              </button>
-            </nav>
-          </div>
-        </div>
-
-        {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
-        {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
-        {activeTab === 'wins' && (
-          <div>
-            <GoalProgress 
-               currentSaved={goalSaved}
-               totalReturned={totalSaved} 
-               goalName={userProfile?.savingsGoal || 'General Savings'} 
-               goalAmount={userProfile?.goalAmount || 1000}
-               onUpdateGoal={handleUpdateGoal}
-            />
-            <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
-          </div>
-        )}
-        {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
-        {activeTab === 'learn' && <FinancialLiteracy />}
-      </main>
-
-      <footer className="w-full py-6 text-center border-t border-gray-800 mt-auto bg-gray-900">
-        <p className="text-gray-500 text-sm">Returnley Web Preview</p>
-        <p className="text-gray-600 text-xs mt-1">Coming soon to Android</p>
-      </footer>
-
-      {isScannerOpen && (
-        <ReceiptScannerModal
-          onClose={() => setIsScannerOpen(false)}
-          onConfirm={handleReceiptScanConfirm}
-        />
-      )}
-
-      {isModalOpen && (
-        <AddPurchaseModal
-          onClose={() => {
-            setIsModalOpen(false);
-            setPrefilledData(null);
-          }}
-          onSubmit={handleAddPurchase}
-          initialData={prefilledData}
-        />
-      )}
-      
-      {isSettingsModalOpen && (
-        <SettingsModal
-          onClose={closeSettingsModal}
-          aiTone={aiTone}
-          onSetAiTone={setAiTone}
-          onClearHistory={handleClearHistory}
-        />
-       )}
-
-      {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && (
-        <IncomingCall
-          transaction={callState.transaction}
-          analysis={callState.analysis}
-          audioUrl={callState.audioUrl}
-          onResolve={handleCallResolve}
-        />
-      )}
-    </div>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    flexDirection: 'column', // Stack children vertically
+    backgroundColor: '#111827', // bg-gray-900
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
+  },
+  scrollView: {
+    flex: 1, // Take up all available vertical space
+  },
+  mainContainer: {
+    padding: 16, // p-4 md:p-6
+    flex: 1,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  loadingMessage: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(127, 29, 29, 0.4)', // bg-red-900
+    borderColor: '#DC2626', // border-red-700
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorTitle: {
+    color: '#FECACA', // text-red-200
+    fontWeight: 'bold',
+  },
+  errorMessage: {
+    color: '#FECACA',
+  },
+  tabContainer: {
+    marginBottom: 24, // mb-6
+  },
+  tabNav: {
+    borderBottomWidth: 1,
+    borderColor: '#374151', // border-gray-700
+    // flex space-x-6 (marginRight on buttons)
+  },
+  tabButton: {
+    paddingVertical: 12, // py-3
+    paddingHorizontal: 4, // px-1
+    borderBottomWidth: 2, // border-b-2
+    borderColor: 'transparent',
+    marginRight: 24, // space-x-6
+  },
+  tabButtonActive: {
+    borderColor: '#A78BFA', // border-purple-500
+  },
+  tabButtonActiveWins: {
+    borderColor: '#60A5FA', // border-blue-500
+  },
+  tabButtonActiveShame: {
+    borderColor: '#F87171', // border-red-500
+  },
+  tabButtonActiveLeaderboard: {
+    borderColor: '#FBBF24', // border-yellow-500
+  },
+  tabButtonActiveLearn: {
+    borderColor: '#34D399', // border-green-500
+  },
+  tabText: {
+    fontSize: 14, // text-sm
+    fontWeight: '500', // font-medium
+    color: '#9CA3AF', // text-gray-400
+  },
+  tabTextActive: {
+    color: '#A78BFA', // text-purple-400
+  },
+  tabTextActiveWins: {
+    color: '#60A5FA', // text-blue-400
+  },
+  tabTextActiveShame: {
+    color: '#F87171', // text-red-400
+  },
+  tabTextActiveLeaderboard: {
+    color: '#FBBF24', // text-yellow-400
+  },
+  tabTextActiveLearn: {
+    color: '#34D399', // text-green-400
+  },
+  badgeContainer: {
+    marginLeft: 8, // ml-2
+    backgroundColor: '#1E40AF', // bg-blue-800
+    width: 20, // w-5
+    height: 20, // h-5
+    borderRadius: 10, // rounded-full
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeContainerShame: {
+    marginLeft: 8,
+    backgroundColor: '#991B1B', // bg-red-800
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#DBEAFE', // text-blue-200
+    fontSize: 10, // text-xs
+    fontWeight: 'bold', // font-bold
+  },
+  totalSavedCard: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)', // bg-gray-800/50
+    borderRadius: 8, // rounded-lg
+    padding: 24, // p-6
+    marginBottom: 24, // mb-6
+    alignItems: 'center', // text-center
+  },
+  totalSavedTitle: {
+    fontSize: 18, // text-lg
+    fontWeight: '600', // font-semibold
+    color: '#D1D5DB', // text-gray-300
+  },
+  totalSavedAmount: {
+    fontSize: 36, // text-4xl
+    fontWeight: 'bold', // font-bold
+    // text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 (approximated with a solid color)
+    color: '#34D399', // green-400
+    marginTop: 8, // mt-2
+  },
+  totalSavedSubtitle: {
+    fontSize: 14, // text-sm
+    color: '#9CA3AF', // text-gray-400
+    marginTop: 4, // mt-1
+  },
+  topTitleContainer: {
+    backgroundColor: '#1F2937', // bg-gray-800
+    paddingVertical: 16, // py-4
+    alignItems: 'center', // Center title horizontally
+    shadowColor: '#000', // shadow-lg
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  topTitleText: {
+    fontSize: 28, // Larger font size for main title
+    fontWeight: 'bold',
+    color: '#A78BFA', // Purple color
+  },
+  bottomNavBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#1F2937', // bg-gray-800
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderColor: '#374151', // border-gray-700
+    shadowColor: '#000', // shadow-lg
+    shadowOffset: { width: 0, height: -2 }, // Shadow at the top
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bottomNavButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  bottomNavButtonText: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
+  },
+});

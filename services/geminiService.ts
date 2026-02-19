@@ -2,84 +2,24 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { PurchaseAnalysis, UserProfile } from '../types';
 import { CATEGORIES } from "../lib/categories";
+import * as FileSystem from 'expo-file-system';
+import { Buffer } from 'buffer'; // Expo polyfills Buffer
+import * as ImageManipulator from 'expo-image-manipulator';
+
+import Constants from 'expo-constants';
+
+
+const geminiApiKey: string | undefined = process.env.GEMINI_API_KEY
+ || Constants.expoConfig?.extra?.geminiApiKey;
 
 // Ensure the API key is available.
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
+if (!geminiApiKey) {
+    throw new Error("geminiApiKey is not defined. Ensure GEMINI_API_KEY is set in app.config.ts or as an EAS Secret.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
 type AiTone = 'encouraging' | 'stern' | 'ruthless';
-
-// --- Audio Helper Functions ---
-
-/**
- * Decodes a base64 encoded string into a Uint8Array.
- * This is necessary because the Gemini API returns audio data in base64 format.
- * @param base64 The base64 encoded string.
- * @returns A Uint8Array containing the decoded binary data.
- */
-function decode(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-/**
- * Creates a playable WAV audio Blob from raw PCM data.
- * The Gemini TTS service returns raw 16-bit mono PCM audio at a 24kHz sample rate.
- * Browsers cannot play raw PCM directly, so we must wrap it in a WAV header.
- * @param pcmData The raw PCM audio data as a Uint8Array.
- * @returns A Blob object representing a complete .wav file.
- */
-function createWaveBlob(pcmData: Uint8Array): Blob {
-    const sampleRate = 24000;
-    const numChannels = 1;
-    const bitsPerSample = 16;
-    const dataSize = pcmData.length;
-
-    // The total buffer size is 44 bytes for the WAV header plus the size of the audio data.
-    const buffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(buffer);
-
-    const writeString = (view: DataView, offset: number, string: string) => {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    }
-
-    // RIFF chunk descriptor
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true); // file-size - 8
-    writeString(view, 8, 'WAVE');
-
-    // "fmt " sub-chunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // chunk-size
-    view.setUint16(20, 1, true);  // audio-format (1 for PCM)
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true); // byte rate
-    view.setUint16(32, numChannels * (bitsPerSample / 8), true); // block align
-    view.setUint16(34, bitsPerSample, true);
-
-    // "data" sub-chunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    // Write the raw PCM data after the header
-    for (let i = 0; i < dataSize; i++) {
-        view.setUint8(44 + i, pcmData[i]);
-    }
-
-    return new Blob([view], { type: 'audio/wav' });
-}
-
 
 // --- API Service Functions ---
 
@@ -102,11 +42,12 @@ const analyzePurchase = async (
     userProfile?: UserProfile,
     emotionalContext?: string,
     isUrge: boolean = false
-): Promise<PurchaseAnalysis> => {
-  const model = "gemini-2.5-pro";
+  ): Promise<PurchaseAnalysis> => {
+  
+    const model = "gemini-2.5-flash";
 
-  // A map to dynamically construct parts of the system instruction based on the user's selected tone.
-  const toneMap = {
+    // A map to dynamically construct parts of the system instruction based on the user's selected tone.
+    const toneMap = {
       encouraging: {
           intro: "You are Returnley, an AI financial conscience. Your tone is firm, but encouraging and your goal is to help users curb compulsive spending.",
           returnableScriptInstruction: "create a short, firm, but encouraging script for a phone call urging the user to return the item.",
@@ -122,26 +63,27 @@ const analyzePurchase = async (
           returnableScriptInstruction: "create a short, savage script for a phone call that demolishes any pathetic justification for keeping the item. Frame it as an embarrassing, predictable failure of self-control. Question their intelligence.",
           nonReturnableScriptInstruction: "create a script that is a brutal dressing-down about the permanent stupidity of their decision. Make them feel the full, crushing weight of their financial incompetence. Rub it in."
       }
-  };
-  const selectedTone = toneMap[tone];
+    };
 
-  // Construct context string
-  let userContextStr = "";
-  if (userProfile) {
+    const selectedTone = toneMap[tone];
+
+    // Construct context string
+    let userContextStr = "";
+    if (userProfile) {
       userContextStr = `
       USER PROFILE:
-      - Monthly Income: $${userProfile.monthlyIncome}
-      - Financial Weakness: ${userProfile.financialWeakness}
-      - Main Goal: ${userProfile.savingsGoal}
+      - Monthly Income: $${userProfile.monthlyIncome || 0}
+      - Financial Weakness: ${userProfile.financialWeakness || 'None'}
+      - Main Goal: ${userProfile.savingsGoal || 'Unknown'}
       
       Compare the purchase amount ($${amount}) to their monthly income. If it's a significant % (e.g. > 10%), be more critical.
       If the item aligns with their "Financial Weakness", call them out on falling into old habits.
       Remind them how this purchase hurts their "Main Goal".
       `;
-  }
+    }
 
-  let emotionalContextStr = "";
-  if (emotionalContext && emotionalContext !== 'Neutral / Normal') {
+    let emotionalContextStr = "";
+    if (emotionalContext && emotionalContext !== 'Neutral / Normal') {
       emotionalContextStr = `
       USER EMOTIONAL STATE: ${emotionalContext}
       The user reported feeling this way when adding the item. 
@@ -150,8 +92,8 @@ const analyzePurchase = async (
       `;
   }
 
-  // The system instruction provides detailed context and rules for the AI model.
-  const systemInstruction = `${selectedTone.intro} Analyze the user's purchase based on all provided details.
+    // The system instruction provides detailed context and rules for the AI model.
+    const systemInstruction = `${selectedTone.intro} Please analyze the user's purchase based on all provided details.
     
     ${userContextStr}
     ${emotionalContextStr}
@@ -176,38 +118,54 @@ const analyzePurchase = async (
     
     Provide a brief reasoning for your decision. The callScript should be empty if the purchase is necessary OR if it is an urge.`;
 
-  const today = new Date().toISOString().split('T')[0];
-  const prompt = `Purchase Date: ${today}. Analyze this purchase:\nItem: ${item}\nAmount: $${amount}\nCategory: ${category}\nReturnable: ${isReturnable}\nReturn By: ${returnBy || 'N/A'}\nUser Justification: ${justification || 'None provided'}\nIs Urge: ${isUrge}`;
+    const today = new Date().toISOString().split('T')[0];
+    const prompt = `Purchase Date: ${today}. Please analyze this purchase:\nItem: ${item}\nAmount: $${amount}\nCategory: ${category}\nReturnable: ${isReturnable}\nReturn By: ${returnBy || 'N/A'}\nUser Justification: ${justification || 'None provided'}\nIs Urge: ${isUrge}`;
 
-  const response = await ai.models.generateContent({
-    model: model,
-    contents: prompt,
-    config: {
-      systemInstruction: systemInstruction,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          isNecessary: { type: Type.BOOLEAN, description: "Whether the purchase is deemed necessary." },
-          reasoning: { type: Type.STRING, description: "A brief explanation for the decision." },
-          callScript: { type: Type.STRING, description: "Script for the call. Empty if necessary or if it's an urge." },
-          hotTake: { type: Type.STRING, description: "A punchy, one-sentence reaction if this is an urge." },
-          estimatedReturnBy: { type: Type.STRING, description: "Estimated return date in YYYY-MM-DD." }
+    let response;
+
+    try {
+    response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isNecessary: { type: Type.BOOLEAN, description: "Whether the purchase is deemed necessary." },
+            reasoning: { type: Type.STRING, description: "A brief explanation for the decision." },
+            callScript: { type: Type.STRING, description: "Script for the call. Empty if necessary or if it's an urge." },
+            hotTake: { type: Type.STRING, description: "A punchy, one-sentence reaction if this is an urge." },
+            estimatedReturnBy: { type: Type.STRING, description: "Estimated return date in YYYY-MM-DD." }
+          },
+          required: ["isNecessary", "reasoning", "callScript"],
         },
-        required: ["isNecessary", "reasoning", "callScript"],
-      },
-      temperature: 0.7,
-    }
-  });
+        temperature: 0.7,
+      }
+    });
+  } catch (err) {
+      console.error('AI generation failed', err);
+      throw new Error('AI generation failed');
+  }
 
-  const jsonText = response.text.trim();
-  return JSON.parse(jsonText) as PurchaseAnalysis;
+  if (!response || !response.text) {
+      throw new Error("AI response is null or malformed");
+  }
+
+  try {
+      const jsonText = response.text.trim();
+      return JSON.parse(jsonText) as PurchaseAnalysis;
+  } catch (err) {
+      console.error('Failed to parse AI JSON response:', response.text, err);
+      throw new Error('Invalid AI response format');
+  }
 };
 
 /**
  * Generates audio from a given text string using the Gemini TTS model.
  * @param text The text to be converted to speech.
- * @returns A Promise that resolves to a base64 encoded string of the audio data.
+ * @returns A Promise that resolves to a URI of the temporary audio file.
  */
 const generateCallAudio = async (text: string): Promise<string> => {
     const ttsModel = "gemini-2.5-flash-preview-tts";
@@ -229,7 +187,22 @@ const generateCallAudio = async (text: string): Promise<string> => {
     if (!base64Audio) {
         throw new Error("Failed to generate audio from TTS model.");
     }
-    return base64Audio;
+
+    // Decode base64 to binary
+    const audioBytes = Buffer.from(base64Audio, 'base64');
+    
+    // Save to a temporary file
+    const cacheDir = (FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory;
+    if (!cacheDir) {
+        throw new Error("No writable directory found for temporary audio.");
+    }
+
+    const fileUri = cacheDir + `call_audio_${Date.now()}.wav`;
+    await FileSystem.writeAsStringAsync(fileUri, audioBytes.toString('base64'), {
+        encoding: 'base64',
+    });
+
+    return fileUri;
 };
 
 /**
@@ -254,10 +227,7 @@ export const analyzePurchaseAndGenerateAudio = async (
     let audioUrl: string | null = null;
     // Only generate audio if it's unnecessary AND NOT an urge.
     if (!analysis.isNecessary && analysis.callScript && !isUrge) {
-        const base64Audio = await generateCallAudio(analysis.callScript);
-        const audioBytes = decode(base64Audio);
-        const audioBlob = createWaveBlob(audioBytes);
-        audioUrl = URL.createObjectURL(audioBlob);
+        audioUrl = await generateCallAudio(analysis.callScript);
     }
     
     return { analysis, audioUrl };
@@ -331,10 +301,7 @@ export const generateNagAudio = async (item: string, amount: number, category: s
     }
 
     // Generate audio for the newly created nag script.
-    const base64Audio = await generateCallAudio(nagScript);
-    const audioBytes = decode(base64Audio);
-    const audioBlob = createWaveBlob(audioBytes);
-    const audioUrl = URL.createObjectURL(audioBlob);
+    const audioUrl = await generateCallAudio(nagScript);
 
     return { nagScript, audioUrl };
 };
@@ -344,21 +311,39 @@ export const generateNagAudio = async (item: string, amount: number, category: s
  * @param imageData A base64 encoded string of the receipt image.
  * @returns A Promise that resolves to an object with the extracted item, amount, and category.
  */
-export const analyzeReceipt = async (imageData: string): Promise<{ item: string; amount: number; category: string; }> => {
+export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
+  
+  // Resize & compress BEFORE BASE64 conversion
+  const resized = await ImageManipulator.manipulateAsync(
+    imageUri,
+    [{ resize: { width: 1000} }],
+    {
+      compress: 0.5,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+
+  if (!resized.base64) {
+    throw new Error("Failed to convert image");
+  }
+
+  const base64Image = resized.base64;
   const model = "gemini-2.5-flash";
+  
   const allCategories = Object.values(CATEGORIES).flat();
 
-  const systemInstruction = `You are an intelligent receipt scanner. Analyze the provided image of a receipt or checkout screen. Your task is to extract the key details and return them in a clean JSON format.
+  const systemInstruction = `You are an intelligent receipt scanner. Please analyze the provided image of a receipt or checkout screen. Your task is to extract the key details and return them in a clean JSON format.
   - "item": Find the most prominent item or a concise summary if there are many (e.g., "Groceries from Market Co.", "Electronics order"). Do not list every single item.
   - "amount": Find the final total amount paid. It's usually labeled "Total", "Grand Total", or is the largest number at the bottom. Extract only the number.
   - "category": Based on the items and store name, classify the purchase into one of the following valid categories: ${allCategories.join(', ')}. Pick the most appropriate one.
-  Your response must be only the JSON object.`;
+  Your response must be only the JSON object. Thank you`;
   
   // Create the image part for the multimodal prompt.
   const imagePart = {
     inlineData: {
       mimeType: 'image/jpeg',
-      data: imageData,
+      data: base64Image,
     },
   };
   
@@ -386,16 +371,21 @@ export const analyzeReceipt = async (imageData: string): Promise<{ item: string;
     }
   });
   
-  const jsonText = response.text.trim();
-  const parsed = JSON.parse(jsonText);
-  
-  // Post-processing validation: Ensure the category returned by the AI is one we support.
-  if (!allCategories.includes(parsed.category)) {
-      console.warn(`Gemini returned an invalid category: ${parsed.category}. Defaulting to 'Shopping'.`);
-      parsed.category = 'Shopping';
+  if (!response.text){
+    throw new Error ("Response is null");
   }
+  else {
+    const jsonText = response.text.trim();
+    const parsed = JSON.parse(jsonText);
 
-  return parsed;
+    // Post-processing validation: Ensure the category returned by the AI is one we support.
+    if (!allCategories.includes(parsed.category)) {
+        console.warn(`Gemini returned an invalid category: ${parsed.category}. Defaulting to 'Shopping'.`);
+        parsed.category = 'Shopping';
+    }
+
+    return parsed;
+  }
 };
 
 /**
