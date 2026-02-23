@@ -50,6 +50,8 @@ export default ({ config }: { config: ExpoConfig}) => {
         },
         extra: {
             ...config.extra,
+            // TODO: Check if this is secure, for testing this is ok
+            geminiApiKey: geminiApiKey,
             eas: {
                 projectId: "3850c4a1-72b8-4ee2-83e4-fe8f19a5355c"
             }
