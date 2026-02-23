@@ -227,7 +227,8 @@ const styles = StyleSheet.create({
   cameraPreviewContainer: {
     position: 'relative',
     width: '100%',
-    aspectRatio: 9 / 16, // aspect-[9/16]
+    flex: 1,
+    maxHeight: 600,
     // md:aspect-video for larger screens might require responsive logic not directly in StyleSheet
     backgroundColor: '#111827', // bg-gray-900
     borderRadius: 8, // rounded-lg
