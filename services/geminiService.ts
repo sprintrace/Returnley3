@@ -116,7 +116,9 @@ const analyzePurchase = async (
     - If a purchase is deemed unnecessary BUT IS NOT RETURNABLE (final sale), DO NOT tell them to return it.
       - Your script should instead be ${selectedTone.nonReturnableScriptInstruction}
     
-    Provide a brief reasoning for your decision. The callScript should be empty if the purchase is necessary OR if it is an urge.`;
+    - **CRITICAL REQUIREMENT:** You MUST always return the 'callScript' field in your JSON. If the purchase is necessary OR if it is an urge, set 'callScript' to an empty string ("").
+    
+    Provide a brief reasoning for your decision.`;
 
     const today = new Date().toISOString().split('T')[0];
     const prompt = `Purchase Date: ${today}. Please analyze this purchase:\nItem: ${item}\nAmount: $${amount}\nCategory: ${category}\nReturnable: ${isReturnable}\nReturn By: ${returnBy || 'N/A'}\nUser Justification: ${justification || 'None provided'}\nIs Urge: ${isUrge}`;
@@ -135,7 +137,7 @@ const analyzePurchase = async (
           properties: {
             isNecessary: { type: Type.BOOLEAN, description: "Whether the purchase is deemed necessary." },
             reasoning: { type: Type.STRING, description: "A brief explanation for the decision." },
-            callScript: { type: Type.STRING, description: "Script for the call. Empty if necessary or if it's an urge." },
+            callScript: { type: Type.STRING, description: "Script for the call. MUST be an empty string if necessary or if it's an urge." },
             hotTake: { type: Type.STRING, description: "A punchy, one-sentence reaction if this is an urge." },
             estimatedReturnBy: { type: Type.STRING, description: "Estimated return date in YYYY-MM-DD." }
           },
@@ -154,7 +156,13 @@ const analyzePurchase = async (
   }
 
   try {
-      const jsonText = response.text.trim();
+      // Robust JSON extraction in case the AI wraps it in markdown blocks
+      let jsonText = response.text.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3, jsonText.length - 3).trim();
+      }
       return JSON.parse(jsonText) as PurchaseAnalysis;
   } catch (err) {
       console.error('Failed to parse AI JSON response:', response.text, err);
@@ -168,7 +176,7 @@ const analyzePurchase = async (
  * @returns A Promise that resolves to a URI of the temporary audio file.
  */
 const generateCallAudio = async (text: string): Promise<string> => {
-    const ttsModel = "gemini-2.5-flash-preview-tts";
+    const ttsModel = "gemini-2.5-flash-tts";
     
     const response = await ai.models.generateContent({
         model: ttsModel,
@@ -375,7 +383,12 @@ export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; 
     throw new Error ("Response is null");
   }
   else {
-    const jsonText = response.text.trim();
+    let jsonText = response.text.trim();
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.substring(3, jsonText.length - 3).trim();
+    }
     const parsed = JSON.parse(jsonText);
 
     // Post-processing validation: Ensure the category returned by the AI is one we support.
