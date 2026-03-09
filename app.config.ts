@@ -64,7 +64,8 @@ export default ({ config }: { config: ExpoConfig}) => {
                 {
                     cameraPermission: "Allow Returnley to access your camera to scan receipts."
                 }
-            ]
+            ],
+            "expo-audio",
         ]
     };
 };

@@ -200,7 +200,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, // px-3
     paddingVertical: 8, // py-2
     borderRadius: 6, // rounded-md
-    transitionDuration: 200, // transition-colors (handled by TouchableOpacity feedback)
     alignItems: 'center',
     marginHorizontal: 2, // simulating space-x-1
     flexShrink: 1, // Allow the button to shrink

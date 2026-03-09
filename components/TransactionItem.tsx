@@ -90,7 +90,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
         <View style={itemStyles.mainInfo}>
           <View style={itemStyles.iconContainer}>
             {!transaction.isExample && (
-              <Ionicons name={currentStyles.iconName} size={24} color={currentStyles.text.color} />
+              <Ionicons name={currentStyles.iconName as any} size={24} color={(currentStyles.text as any).color} />
             )}
             </View>
           <View style={itemStyles.textInfo}>
@@ -207,7 +207,6 @@ const itemStyles = StyleSheet.create({
     borderRadius: 8, // rounded-lg
     borderLeftWidth: 4, // border-l-4
     marginBottom: 8, // simulating margin for list items
-    transitionDuration: 300, // transition-all duration-300 (not directly translatable)
     // hover:bg-gray-700/50 (handled by TouchableOpacity feedback if item itself was Touchable)
   },
   contentWrapper: {

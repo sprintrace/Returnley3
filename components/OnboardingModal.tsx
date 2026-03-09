@@ -37,7 +37,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               Welcome to Returnley
             </Text>
             <Text style={styles.welcomeSubtitle}>
-              To be your financial conscience, I need to know who I'm dealing with.
+              To be your financial conscience, I need to know a little infomation. 
+              Just so I know who I'm dealing with.
             </Text>
           </View>
 
@@ -50,7 +51,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 <Text style={styles.currencySymbol}>$</Text>
                 <TextInput
                   keyboardType="numeric"
-                  required
                   value={income}
                   onChangeText={setIncome}
                   style={styles.input}
@@ -66,7 +66,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               </Text>
               <View style={styles.inputContainer}>
                 <TextInput
-                  required
                   value={weakness}
                   onChangeText={setWeakness}
                   style={styles.input}
@@ -83,7 +82,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 </Text>
                 <View style={styles.inputContainer}>
                   <TextInput
-                    required
                     value={goal}
                     onChangeText={setGoal}
                     style={styles.input}
@@ -100,7 +98,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                   <Text style={styles.currencySymbol}>$</Text>
                   <TextInput
                     keyboardType="numeric"
-                    required
                     value={goalAmount}
                     onChangeText={setGoalAmount}
                     style={styles.input}

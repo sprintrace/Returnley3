@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Activi
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { Header } from './components/Header';
 import { TransactionList } from './components/TransactionList';
 import { AddPurchaseModal } from './components/AddPurchaseModal';
@@ -16,6 +18,17 @@ import { SettingsModal } from './components/SettingsModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { GoalProgress } from './components/GoalProgress';
 import { FAST_FOOD_KEYWORDS } from './lib/keywords';
+
+// Configure notifications to show alerts even when the app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 /**
  * Provides a set of sample transactions for initial state or when history is cleared.
@@ -153,6 +166,21 @@ export default function App() {
   // --- Side Effects (useEffect) ---
 
   useEffect(() => {
+    async function requestPermissions() {
+      if (Device.isDevice) {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== 'granted') {
+          console.warn('Failed to get push token for push notification!');
+        }
+      }
+    }
+    requestPermissions();
+
     async function loadData() {
       try {
         const storedTransactions = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
@@ -214,36 +242,52 @@ export default function App() {
     );
   }, []);
 
+  const handleNag = useCallback(async (transaction: Transaction) => {
+      setIsLoading(true);
+      setLoadingMessage('Preparing follow-up...');
+      setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, error: undefined } : t));
+
+      try {
+        const result = await generateNagAudio(transaction.item, transaction.amount, transaction.category, transaction.nagCount, aiTone);
+        const nagAnalysis: PurchaseAnalysis = {
+          isNecessary: false,
+          reasoning: `This is follow-up #${transaction.nagCount + 1} about the ${transaction.item}.`,
+          callScript: result.nagScript,
+        };
+        setCallState({
+          isActive: true,
+          transaction,
+          analysis: nagAnalysis,
+          audioUrl: result.audioUrl,
+        });
+      } catch (err) {
+        console.error(err);
+        setTransactions(prev => prev.map(t =>
+          t.id === transaction.id ? { ...t, error: 'Failed to generate follow-up call.' } : t
+        ));
+      } finally {
+        setIsLoading(false);
+      }
+  }, [aiTone]);
+
+  // Handle notification responses
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data && data.transactionId) {
+        const transaction = transactions.find(t => t.id === data.transactionId);
+        if (transaction && (data.type === 'nag' || data.type === 'initial_nag_backup' || data.type === 'urge_purchase_nag_backup')) {
+            // Trigger the nag logic immediately if they tap the notification
+            handleNag(transaction);
+        }
+      }
+    });
+
+    return () => subscription.remove();
+  }, [transactions, handleNag]);
+
   // Persistent nagging effect
   useEffect(() => {
-    const handleNag = async (transaction: Transaction) => {
-        setIsLoading(true);
-        setLoadingMessage('Preparing follow-up...');
-        setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, error: undefined } : t));
-
-        try {
-          const result = await generateNagAudio(transaction.item, transaction.amount, transaction.category, transaction.nagCount, aiTone);
-          const nagAnalysis: PurchaseAnalysis = {
-            isNecessary: false,
-            reasoning: `This is follow-up #${transaction.nagCount + 1} about the ${transaction.item}.`,
-            callScript: result.nagScript,
-          };
-          setCallState({
-            isActive: true,
-            transaction,
-            analysis: nagAnalysis,
-            audioUrl: result.audioUrl,
-          });
-        } catch (err) {
-          console.error(err);
-          setTransactions(prev => prev.map(t =>
-            t.id === transaction.id ? { ...t, error: 'Failed to generate follow-up call.' } : t
-          ));
-        } finally {
-          setIsLoading(false);
-        }
-    };
-      
     const tick = () => {
       if (isLoading || callState.isActive) return;
 
@@ -261,7 +305,7 @@ export default function App() {
     };
     const intervalId = setInterval(tick, 5000); 
     return () => clearInterval(intervalId);
-  }, [transactions, isLoading, callState.isActive, aiTone]);
+  }, [transactions, isLoading, callState.isActive, handleNag]);
 
 
   // --- Event Handlers ---
@@ -373,10 +417,19 @@ export default function App() {
       const analysis = result?.analysis;
       const audioUrl = result?.audioUrl;
       
-      // Determine transaction status
+      // Determine transaction status and initial nag timestamp
       let status = TransactionStatus.Pending;
-      if (isUrge) status = TransactionStatus.Urge;
-      else if (result.analysis.isNecessary) status = TransactionStatus.Approved;
+      let nextNagTimestamp: number | undefined;
+
+      if (isUrge) {
+          status = TransactionStatus.Urge;
+      } else if (result.analysis.isNecessary) {
+          status = TransactionStatus.Approved;
+      } else if (isReturnable) {
+          // If unnecessary and returnable, set a "backup" nag for 1 minute from now
+          // in case they miss the immediate call.
+          nextNagTimestamp = Date.now() + 60000;
+      }
 
       const newTransaction: Transaction = {
         id: Date.now().toString(),
@@ -389,6 +442,7 @@ export default function App() {
         returnBy: analysis?.estimatedReturnBy || returnBy,
         justification,
         nagCount: 0,
+        nextNagTimestamp, // Set the initial nag timestamp
         emotionalContext,
         hotTake: analysis?.hotTake // Store the hot take if it exists
       };
@@ -403,6 +457,16 @@ export default function App() {
           analysis,
           audioUrl,
         });
+
+        // Also schedule a system notification for the backup nag
+        if (nextNagTimestamp) {
+            scheduleNotification(
+                "Returnley Calling...",
+                `I'm waiting for your answer about that ${item}.`,
+                nextNagTimestamp,
+                { transactionId: newTransaction.id, type: 'initial_nag_backup' }
+            );
+        }
       }
     } catch (err) {
       console.error('Analysis failed', err);
@@ -511,6 +575,12 @@ export default function App() {
                 newStatus = TransactionStatus.Approved;
             }
 
+            // Determine the next nag timestamp if unnecessary and returnable
+            let nextNagTimestamp: number | undefined;
+            if (!result.analysis.isNecessary && transaction.isReturnable) {
+                nextNagTimestamp = Date.now() + 60000;
+            }
+
             // Update the transaction in the list
             setTransactions(prev => prev.map(t => {
                 if (t.id === transactionId) {
@@ -518,6 +588,7 @@ export default function App() {
                         ...t,
                         status: newStatus,
                         hotTake: undefined, // Remove the hot take
+                        nextNagTimestamp, // Set the initial nag timestamp
                         // Update returnBy if the AI estimated one
                         returnBy: result.analysis.estimatedReturnBy || t.returnBy
                     };
@@ -529,10 +600,20 @@ export default function App() {
             if (!result.analysis.isNecessary) {
                 setCallState({
                     isActive: true,
-                    transaction: { ...transaction, status: newStatus },
+                    transaction: { ...transaction, status: newStatus, nextNagTimestamp },
                     analysis: result.analysis,
                     audioUrl: result.audioUrl,
                 });
+
+                // Schedule a backup nag notification
+                if (nextNagTimestamp) {
+                    scheduleNotification(
+                        "Returnley Calling...",
+                        `So you bought the ${transaction.item}? We need to talk.`,
+                        nextNagTimestamp,
+                        { transactionId: transaction.id, type: 'urge_purchase_nag_backup' }
+                    );
+                }
             }
 
         } catch (err) {
@@ -562,9 +643,35 @@ export default function App() {
     );
   }, []);
 
-  const handleCallResolve = useCallback((decision: 'return' | 'keep') => {
+  const scheduleNotification = useCallback(async (title: string, body: string, triggerTime: number, data: any = {}) => {
+    try {
+      const now = Date.now();
+      const delay = Math.max(0, triggerTime - now) / 1000;
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: Math.floor(delay) || 1,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to schedule notification:', err);
+    }
+  }, []);
+
+  const handleCallResolve = useCallback(async (decision: 'return' | 'keep') => {
     if (!callState.transaction) return;
-    const { id, amount, isReturnable } = callState.transaction;
+    const { id, item, amount, isReturnable, returnBy } = callState.transaction;
+
+    // Local variable to store the new timestamp so we can schedule the notification
+    let nextTimestamp: number | undefined;
 
     setTransactions(prev => prev.map(t => {
       if (t.id !== id) return t;
@@ -580,7 +687,8 @@ export default function App() {
         newStatus = TransactionStatus.Flagged;
         const isFirstTimeFlagged = t.nagCount === 0;
 
-        if (amount > 250 && isReturnable) {
+        // Lowered threshold from 250 to 0 (or a very small amount)
+        if (amount > 0 && isReturnable) {
             if (isFirstTimeFlagged) {
                 newNagCount = 1;
                 newTimestamp = Date.now() + NAG_INTERVAL_MS;
@@ -595,12 +703,39 @@ export default function App() {
             }
         }
       }
+      nextTimestamp = newTimestamp;
       return { ...t, status: newStatus, nagCount: newNagCount, nextNagTimestamp: newTimestamp };
     }));
+
+    // Schedule Notifications based on the decision
+    if (decision === 'keep' && nextTimestamp) {
+        scheduleNotification(
+            "Returnley Calling...",
+            `I'm not finished with you about that ${item}. Check the app.`,
+            nextTimestamp,
+            { transactionId: id, type: 'nag' }
+        );
+    } else if (decision === 'return') {
+        // Schedule a reminder for the returnBy date if it exists
+        if (returnBy) {
+            const deadline = new Date(returnBy);
+            // Remind 24 hours before the deadline (or 5 seconds for demo if it's today)
+            const today = new Date();
+            const reminderTime = deadline.getTime() - (24 * 60 * 60 * 1000);
+            const finalReminderTime = Math.max(Date.now() + 10000, reminderTime); // At least 10 seconds from now
+
+            scheduleNotification(
+                "Return Reminder",
+                `Don't forget to return the ${item}! The deadline is ${returnBy}.`,
+                finalReminderTime,
+                { transactionId: id, type: 'return_reminder' }
+            );
+        }
+    }
     
     // No need for URL.revokeObjectURL
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
-  }, [callState]);
+  }, [callState, scheduleNotification]);
   
   const handleUpdateGoal = useCallback((name: string, amount: number) => {
     if (userProfile) {

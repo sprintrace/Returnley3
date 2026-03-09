@@ -174,7 +174,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16, // px-4
         paddingVertical: 8, // py-2
         borderRadius: 9999, // rounded-full
-        transitionDuration: 200, // duration-200
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8, // for gap simulation

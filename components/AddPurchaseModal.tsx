@@ -165,7 +165,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 style={styles.input}
                 placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
                 placeholderTextColor="#9CA3AF" // gray-400
-                required/>
+              />
             </View>
             <View>
               <Text style={styles.label}>Amount ($)</Text>
@@ -177,7 +177,7 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 placeholder="e.g., 1599.99"
                 placeholderTextColor="#9CA3AF" // gray-400
                 keyboardType="numeric"
-                required/>
+              />
             </View>
             
             {/* Emotional Context */}
@@ -248,13 +248,12 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                     id="justification"
                     value={justification}
                     onChangeText={setJustification}
-                    style={[styles.input, styles.textarea]}
+                    style={[styles.input, styles.textarea, { minHeight: Platform.OS === 'ios' ? 60 : undefined }]}
                     placeholder="e.g., This camera will help my YouTube channel."
                     placeholderTextColor="#9CA3AF" // gray-400
                     multiline={true}
                     numberOfLines={Platform.OS === 'ios' ? undefined : 2}
-                    minHeight={Platform.OS === 'ios' ? 60 : undefined}
-                    required/>
+                  />
                 </View>
              )}
 
