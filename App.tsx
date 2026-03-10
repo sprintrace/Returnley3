@@ -129,9 +129,14 @@ export default function App() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      if (data?.transactionId) {
-        const tx = transactions.find(t => t.id === data.transactionId);
-        if (tx && ['nag', 'initial_nag_backup', 'urge_purchase_nag_backup'].includes(data.type)) handleNag(tx);
+      const transactionId = data?.transactionId as string | undefined;
+      const type = data?.type as string | undefined;
+
+      if (transactionId) {
+        const tx = transactions.find(t => t.id === transactionId);
+        if (tx && type && ['nag', 'initial_nag_backup', 'urge_purchase_nag_backup'].includes(type)) {
+          handleNag(tx);
+        }
       }
     });
     return () => sub.remove();
