@@ -16,13 +16,15 @@ interface IncomingCallProps {
   audioUrl: string;
   /** Callback function to resolve the call with the user's decision. */
   onResolve: (decision: 'return' | 'keep') => void;
+  /** Callback function when the user answers. */
+  onAnswer?: () => void;
 }
 
 /**
  * A full-screen modal that simulates an incoming phone call to the user.
  * It manages its own internal state for the call flow (ringing, answered).
  */
-export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysis, audioUrl, onResolve }) => {
+export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysis, audioUrl, onResolve, onAnswer }) => {
   // Internal state machine for the call UI: 'ringing' -> 'answered' -> 'ended'
   const [callState, setCallState] = useState<'ringing' | 'answered' | 'ended'>('ringing');
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -30,7 +32,19 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   // Use the useAudioPlayer hook
   const player = useAudioPlayer(audioUrl);
 
-  // Animated value for the ping effect
+  useEffect(() => {
+    console.log("Audio Player Status:", {
+      playing: player.playing,
+      status: player.status,
+      audioUrl: audioUrl.substring(0, 50) + "..."
+    });
+  }, [player.playing, player.status, audioUrl]);
+
+  useEffect(() => {
+      if (player.status === 'finished') {
+          setHasPlayed(true);
+      }
+  }, [player.status]);
   const pingAnim = useRef(new Animated.Value(0)).current;
 
   // Animation for the ping effect
@@ -48,6 +62,7 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
 
   const handleAnswer = async () => {
     setCallState('answered');
+    if (onAnswer) onAnswer();
     try {
       await player.play();
     } catch (error) {
@@ -143,9 +158,9 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
               <View style={styles.speakingIndicator}>
                   <Text style={styles.speakingText}>Returnley is speaking</Text>
                   {/* Visual indicator for when audio is playing */}
-                  {player.playing && (
+                  {player.playing ? (
                       <Animated.View style={[styles.speakingPing, pingStyle]} />
-                  )}
+                  ) : null}
               </View>
               {/* Display the AI's reasoning text */}
               <View style={styles.reasoningBox}>

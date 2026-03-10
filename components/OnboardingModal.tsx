@@ -185,12 +185,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
           </ScrollView>
 
           <View style={styles.footer}>
-            {step > 1 ? (
+            {step > 1 && (
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={20} color="#9CA3AF" />
                 <Text style={styles.backButtonText}>Back</Text>
               </TouchableOpacity>
-            ) : <View />}
+            )}
 
             <TouchableOpacity 
               onPress={handleNext} 

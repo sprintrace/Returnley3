@@ -96,7 +96,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
           <View style={itemStyles.textInfo}>
             <Text style={itemStyles.itemText}>
             {transaction.item}
-            {transaction.isExample && " (Example)"}
+            {transaction.isExample ? <Text> (Example)</Text> : null}
           </Text>
             <View style={itemStyles.categoryDateContainer}>
               <Text style={itemStyles.categoryDateText}>{transaction.category} - {transaction.date}</Text>
@@ -191,7 +191,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
             )}
             {transaction.hotTake && (
                 <View style={itemStyles.hotTakeContainer}>
-                    <Text style={itemStyles.hotTakeText}>"{transaction.hotTake}"</Text>
+                    <Text style={itemStyles.hotTakeText}>{`"${transaction.hotTake}"`}</Text>
                 </View>
             )}
         </View>

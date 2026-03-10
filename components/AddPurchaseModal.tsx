@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { CATEGORIES } from '../lib/categories';
 import { Transaction } from '../types';
@@ -115,180 +115,177 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
         // Close when tapping outside
         onPressOut={onClose} >
         <View style={styles.modalContent} onStartShouldSetResponder={() => true}> {/* Prevent propagation */}
-        
-          {/* Toggle between Purchase and Urge */}
-          <View style={styles.toggleContainer}>
-              <TouchableOpacity
-                  onPress={() => setIsUrgeMode(false)}
-                  style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}>
-                  <Text style={[styles.toggleButtonText, !isUrgeMode && styles.toggleButtonTextActive]}>
-                      I Bought This
-                  </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                  onPress={() => setIsUrgeMode(true)}
-                  style={[styles.toggleButton, isUrgeMode && styles.toggleButtonActiveIndigo]}>
-                  <Text style={[styles.toggleButtonText, isUrgeMode && styles.toggleButtonTextActive]}>
-                      I Want This (Urge)
-                  </Text>
-              </TouchableOpacity>
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Toggle between Purchase and Urge */}
+            <View style={styles.toggleContainer}>
+                <TouchableOpacity
+                    onPress={() => setIsUrgeMode(false)}
+                    style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}>
+                    <Text style={[styles.toggleButtonText, !isUrgeMode && styles.toggleButtonTextActive]}>
+                        I Bought This
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => setIsUrgeMode(true)}
+                    style={[styles.toggleButton, isUrgeMode && styles.toggleButtonActiveIndigo]}>
+                    <Text style={[styles.toggleButtonText, isUrgeMode && styles.toggleButtonTextActive]}>
+                        I Want This (Urge)
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
-          <Text style={styles.modalTitle}>
-              {isUrgeMode ? 'Log a Purchase Urge' : (initialData ? 'Confirm Your Purchase' : 'Log a New Purchase')}
-          </Text>
-          
-          {isUrgeMode && (
-              <Text style={styles.urgeMessage}>
-                  The 24-hour rule: Log it now, wait a day. Returnley will analyze if it's worth it.
-              </Text>
-          )}
-
-          {error && <Text style={styles.errorMessage}>{error}</Text>}
-          <View style={styles.form}>
+            <Text style={styles.modalTitle}>
+                {isUrgeMode ? 'Log a Purchase Urge' : (initialData ? 'Confirm Your Purchase' : 'Log a New Purchase')}
+            </Text>
             
-            {/* Informational message for fast food items */}
-            {isFastFood && !isUrgeMode && (
-              <View style={styles.fastFoodMessageContainer}>
-                <Text style={styles.fastFoodMessageText}>
-                  <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable.
+            {isUrgeMode ? (
+                <Text style={styles.urgeMessage}>
+                    The 24-hour rule: Log it now, wait a day. Returnley will analyze if it's worth it.
                 </Text>
+            ) : null}
+
+            {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
+            
+            <View style={styles.form}>
+              
+              {/* Informational message for fast food items */}
+              {isFastFood && !isUrgeMode && (
+                <View style={styles.fastFoodMessageContainer}>
+                  <Text style={styles.fastFoodMessageText}>
+                    <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable.
+                  </Text>
+                </View>
+              )}
+              
+              <View>
+                <Text style={styles.label}>Item Name</Text>
+                <TextInput
+                  value={item}
+                  onChangeText={setItem}
+                  style={styles.input}
+                  placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
+                  placeholderTextColor="#9CA3AF" // gray-400
+                />
               </View>
-            )}
-            
-            <View>
-              <Text style={styles.label}>Item Name</Text>
-              <TextInput
-                id="item"
-                value={item}
-                onChangeText={setItem}
-                style={styles.input}
-                placeholder={isUrgeMode ? "e.g., That cool jacket I saw" : "e.g., New Gaming Laptop"}
-                placeholderTextColor="#9CA3AF" // gray-400
-              />
-            </View>
-            <View>
-              <Text style={styles.label}>Amount ($)</Text>
-              <TextInput
-                id="amount"
-                value={amount}
-                onChangeText={setAmount}
-                style={styles.input}
-                placeholder="e.g., 1599.99"
-                placeholderTextColor="#9CA3AF" // gray-400
-                keyboardType="numeric"
-              />
-            </View>
-            
-            {/* Emotional Context */}
-            <View>
-              <Text style={styles.label}>How are you feeling?</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                    selectedValue={emotionalContext}
-                    onValueChange={(itemValue) => setEmotionalContext(itemValue)}
+              <View>
+                <Text style={styles.label}>Amount ($)</Text>
+                <TextInput
+                  value={amount}
+                  onChangeText={setAmount}
+                  style={styles.input}
+                  placeholder="e.g., 1599.99"
+                  placeholderTextColor="#9CA3AF" // gray-400
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              {/* Emotional Context */}
+              <View>
+                <Text style={styles.label}>How are you feeling?</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                      selectedValue={emotionalContext}
+                      onValueChange={(itemValue) => setEmotionalContext(itemValue)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}>
+                      {EMOTIONS.map(e => (
+                          <Picker.Item key={e} label={String(e)} value={e} />
+                      ))}
+                  </Picker>
+                </View>
+                <Text style={styles.hintText}>Being honest helps the AI understand your triggers.</Text>
+              </View>
+
+              <View>
+                <Text style={styles.label}>Category</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={category}
+                    onValueChange={(itemValue) => setCategory(itemValue)}
                     style={styles.picker}
                     itemStyle={styles.pickerItem}>
-                    {EMOTIONS.map(e => (
-                        <Picker.Item key={e} label={String(e)} value={e} />
+                    <Picker.Item label="Select a category" value="" enabled={false} />
+                    {Object.values(CATEGORIES).flat().map(option => (
+                      <Picker.Item key={option} label={String(option)} value={option} />
                     ))}
-                </Picker>
+                  </Picker>
+                </View>
               </View>
-              <Text style={styles.hintText}>Being honest helps the AI understand your triggers.</Text>
-            </View>
 
-            <View>
-              <Text style={styles.label}>Category</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={category}
-                  onValueChange={(itemValue) => setCategory(itemValue)}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}>
-                  <Picker.Item label="Select a category" value="" enabled={false} />
-                  {Object.values(CATEGORIES).flat().map(option => (
-                    <Picker.Item key={option} label={String(option)} value={option} />
-                  ))}
-                </Picker>
+              {/* Hide Final Sale toggle in Urge Mode (assumed returnable/not bought) */}
+              {!isUrgeMode && (
+                  <View style={styles.switchContainer}>
+                    <Switch
+                      onValueChange={setIsFinalSale}
+                      value={isFinalSale}
+                      disabled={category === 'Fast Food'}
+                      trackColor={{ false: "#767577", true: "#81b0ff" }}
+                      thumbColor={isFinalSale ? "#f5dd4b" : "#f4f3f4"}
+                      ios_backgroundColor="#3e3e3e"/>
+                    <Text style={[styles.switchLabel, category === 'Fast Food' && styles.disabledText]}>
+                      This is a final sale item (cannot be returned)
+                    </Text>
+                  </View>
+              )}
+
+              <View style={styles.switchContainer}>
+                <Switch
+                  onValueChange={setIsInvestment}
+                  value={isInvestment}
+                  trackColor={{ false: "#767577", true: "#81b0ff" }}
+                  thumbColor={isInvestment ? "#f5dd4b" : "#f4f3f4"}
+                  ios_backgroundColor="#3e3e3e"/>
+                <Text style={styles.switchLabel}>
+                  Justify as an investment (education/monetization)
+                </Text>
               </View>
-            </View>
 
-            {/* Hide Final Sale toggle in Urge Mode (assumed returnable/not bought) */}
-            {!isUrgeMode && (
-                <View style={styles.switchContainer}>
-                  <Switch
-                    onValueChange={setIsFinalSale}
-                    value={isFinalSale}
-                    disabled={category === 'Fast Food'}
-                    trackColor={{ false: "#767577", true: "#81b0ff" }}
-                    thumbColor={isFinalSale ? "#f5dd4b" : "#f4f3f4"}
-                    ios_backgroundColor="#3e3e3e"/>
-                  <Text style={[styles.switchLabel, category === 'Fast Food' && styles.disabledText]}>
-                    This is a final sale item (cannot be returned)
+               {isInvestment && (
+                  <View>
+                    <Text style={styles.label}>Justification</Text>
+                    <TextInput
+                      value={justification}
+                      onChangeText={setJustification}
+                      style={[styles.input, styles.textarea, { minHeight: Platform.OS === 'ios' ? 60 : undefined }]}
+                      placeholder="e.g., This camera will help my YouTube channel."
+                      placeholderTextColor="#9CA3AF" // gray-400
+                      multiline={true}
+                      numberOfLines={Platform.OS === 'ios' ? undefined : 2}
+                    />
+                  </View>
+               )}
+
+              {!isUrgeMode && (
+                  <View>
+                    <Text style={[styles.label, isFinalSale && styles.disabledText]}>Return By Date (Optional)</Text>
+                    <TextInput
+                      value={returnBy}
+                      onChangeText={setReturnBy}
+                      style={[styles.input, isFinalSale && styles.disabledInput]}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9CA3AF" // gray-400
+                      editable={!isFinalSale}/>
+                  </View>
+              )}
+
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.cancelButton}>
+                  <Text style={styles.buttonText}>
+                    Cancel
                   </Text>
-                </View>
-            )}
-
-            <View style={styles.switchContainer}>
-              <Switch
-                onValueChange={setIsInvestment}
-                value={isInvestment}
-                trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={isInvestment ? "#f5dd4b" : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"/>
-              <Text style={styles.switchLabel}>
-                Justify as an investment (education/monetization)
-              </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSubmit}
+                  style={[styles.submitButton, isUrgeMode ? styles.submitButtonUrge : styles.submitButtonPurchase]}>
+                  <Text style={styles.buttonText}>
+                    {isUrgeMode ? 'Log Urge' : 'Submit Purchase'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-             {isInvestment && (
-                <View>
-                  <Text style={styles.label}>Justification</Text>
-                  <TextInput
-                    id="justification"
-                    value={justification}
-                    onChangeText={setJustification}
-                    style={[styles.input, styles.textarea, { minHeight: Platform.OS === 'ios' ? 60 : undefined }]}
-                    placeholder="e.g., This camera will help my YouTube channel."
-                    placeholderTextColor="#9CA3AF" // gray-400
-                    multiline={true}
-                    numberOfLines={Platform.OS === 'ios' ? undefined : 2}
-                  />
-                </View>
-             )}
-
-            {!isUrgeMode && (
-                <View>
-                  <Text style={[styles.label, isFinalSale && styles.disabledText]}>Return By Date (Optional)</Text>
-                  <TextInput
-                    // TODO: Implement date picker
-                    id="return-by"
-                    value={returnBy}
-                    onChangeText={setReturnBy}
-                    style={[styles.input, isFinalSale && styles.disabledInput]}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF" // gray-400
-                    editable={!isFinalSale}/>
-                </View>
-            )}
-
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                onPress={onClose}
-                style={styles.cancelButton}>
-                <Text style={styles.buttonText}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSubmit}
-                style={[styles.submitButton, isUrgeMode ? styles.submitButtonUrge : styles.submitButtonPurchase]}>
-                <Text style={styles.buttonText}>
-                  {isUrgeMode ? 'Log Urge' : 'Submit Purchase'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </TouchableOpacity>
     </Modal>
@@ -313,6 +310,7 @@ const styles = StyleSheet.create({
     padding: 24, // p-6
     width: '90%', // w-full max-w-md
     maxWidth: 400,
+    maxHeight: '90%',
     borderColor: '#374151', // border border-gray-700
     borderWidth: 1,
   },

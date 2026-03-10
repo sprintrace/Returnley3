@@ -247,6 +247,12 @@ export default function App() {
   }, []);
 
   const handleNag = useCallback(async (transaction: Transaction) => {
+      // Prevent nagging for transactions that are already resolved.
+      if (transaction.status === TransactionStatus.Returned || transaction.status === TransactionStatus.Kept) {
+        console.log(`Skipping nag for already resolved transaction: ${transaction.item}`);
+        return;
+      }
+
       setIsLoading(true);
       setLoadingMessage('Preparing follow-up...');
       setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, error: undefined } : t));
@@ -264,6 +270,8 @@ export default function App() {
           analysis: nagAnalysis,
           audioUrl: result.audioUrl,
         });
+        // Dismiss all notifications once we've triggered the call
+        await Notifications.dismissAllNotificationsAsync();
       } catch (err) {
         console.error(err);
         setTransactions(prev => prev.map(t =>
@@ -279,6 +287,9 @@ export default function App() {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       if (data && data.transactionId) {
+        // Find the LATEST transaction from the current state.
+        // We use a functional update or just rely on the fact that this effect
+        // re-runs when 'transactions' changes.
         const transaction = transactions.find(t => t.id === data.transactionId);
         if (transaction && (data.type === 'nag' || data.type === 'initial_nag_backup' || data.type === 'urge_purchase_nag_backup')) {
             // Trigger the nag logic immediately if they tap the notification
@@ -684,6 +695,15 @@ export default function App() {
     if (!callState.transaction) return;
     const { id, item, amount, isReturnable, returnBy } = callState.transaction;
 
+    // Dismiss all notifications once a call is resolved.
+    await Notifications.dismissAllNotificationsAsync();
+    // Also cancel all scheduled notifications to be safe and clean up backup nags.
+    // In a production app, we might only cancel the specific one, but for this
+    // prototype, cleaning up all pending nags for this transaction is the goal.
+    // Since expo-notifications doesn't easily filter by data, we'll just clear all
+    // scheduled ones to ensure no "awaiting follow up" appears.
+    await Notifications.cancelAllScheduledNotificationsAsync();
+
     // Local variable to store the new timestamp so we can schedule the notification
     let nextTimestamp: number | undefined;
 
@@ -880,7 +900,7 @@ export default function App() {
 
             {error && (
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorTitle}>Error: </Text>
+                    <Text style={styles.errorTitle}>Error:</Text>
                     <Text style={styles.errorMessage}>{error}</Text>
                 </View>
             )}
@@ -899,12 +919,10 @@ export default function App() {
                     style={[styles.tabButton, activeTab === 'wins' && styles.tabButtonActiveWins]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>
-                        Returns
-                      </Text>
+                      <Text style={[styles.tabText, activeTab === 'wins' && styles.tabTextActiveWins]}>Returns</Text>
                       {displayedReturnedTransactionsForBadges.length > 0 && (
                         <View style={styles.badgeContainer}>
-                          <Text style={styles.badgeText}>{displayedReturnedTransactionsForBadges.length}</Text>
+                          <Text style={styles.badgeText}>{String(displayedReturnedTransactionsForBadges.length)}</Text>
                         </View>
                       )}
                     </View>
@@ -914,12 +932,10 @@ export default function App() {
                     style={[styles.tabButton, activeTab === 'shameful' && styles.tabButtonActiveShame]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>
-                        Shame
-                      </Text>
+                      <Text style={[styles.tabText, activeTab === 'shameful' && styles.tabTextActiveShame]}>Shame</Text>
                       {displayedShamefulTransactionsForBadges.length > 0 && (
                         <View style={styles.badgeContainerShame}>
-                          <Text style={styles.badgeText}>{displayedShamefulTransactionsForBadges.length}</Text>
+                          <Text style={styles.badgeText}>{String(displayedShamefulTransactionsForBadges.length)}</Text>
                         </View>
                       )}
                     </View>
@@ -928,33 +944,31 @@ export default function App() {
                     onPress={() => setActiveTab('leaderboard')}
                     style={[styles.tabButton, activeTab === 'leaderboard' && styles.tabButtonActiveLeaderboard]}
                   >
-                    <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>
-                      Leaderboard
-                    </Text>
+                    <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActiveLeaderboard]}>Leaderboard</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab('learn')}
                     style={[styles.tabButton, activeTab === 'learn' && styles.tabButtonActiveLearn]}
                   >
-                    <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>
-                      Learn
-                    </Text>
+                    <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActiveLearn]}>Learn</Text>
                   </TouchableOpacity>
                 </ScrollView>
             </View>
 
-            {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/>}
-            {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} />}
-            {activeTab === 'wins' && (
+            {activeTab === 'recent' ? <TransactionList title="Activity Journal" transactions={recentTransactions} onQuickAction={handleQuickAction}/> : null}
+            {activeTab === 'shameful' ? <TransactionList title="Shameful Purchases" transactions={shamefulTransactions} onStatusToggle={handleStatusToggle} /> : null}
+            {activeTab === 'wins' ? (
               <View>
                 <View style={styles.totalSavedCard}>
                   <Text style={styles.totalSavedTitle}>Total Money Saved</Text>
                   <Text style={styles.totalSavedAmount}>
-                    ${displayedTotalSaved.toFixed(2)}
+                    {`$${displayedTotalSaved.toFixed(2)}`}
                   </Text>
-                  {returnedTransactions.length > 0 && (
-                    <Text style={styles.totalSavedSubtitle}>from {returnedTransactions.length} successful return{returnedTransactions.length === 1 ? '' : 's'}.</Text>
-                  )}
+                  {returnedTransactions.length > 0 ? (
+                    <Text style={styles.totalSavedSubtitle}>
+                      {`from ${returnedTransactions.length} successful return${returnedTransactions.length === 1 ? '' : 's'}.`}
+                    </Text>
+                  ) : null}
                 </View>
                  <GoalProgress 
                    currentSaved={goalSaved}
@@ -965,9 +979,9 @@ export default function App() {
                 />
                 <TransactionList title="Return Wins" transactions={returnedTransactions} onStatusToggle={handleStatusToggle} />
               </View>
-            )}
-            {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} />}
-            {activeTab === 'learn' && <FinancialLiteracy />}
+            ) : null}
+            {activeTab === 'leaderboard' ? <Leaderboard userOverallSavings={totalSaved} userMonthlySavings={monthlySaved} /> : null}
+            {activeTab === 'learn' ? <FinancialLiteracy /> : null}
           </View>
         </ScrollView>
 
@@ -1031,6 +1045,7 @@ export default function App() {
             analysis={callState.analysis}
             audioUrl={callState.audioUrl}
             onResolve={handleCallResolve}
+            onAnswer={() => Notifications.dismissAllNotificationsAsync()}
           />
         )}
       </SafeAreaView>

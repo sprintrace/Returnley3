@@ -119,12 +119,12 @@ export const GoalProgress: React.FC<GoalProgressProps> = ({ currentSaved, totalR
              </View>
           </View>
 
-          {progressPercentage >= 100 && (
+          {progressPercentage >= 100 ? (
              <View style={styles.goalAchievedMessage}>
                 <Text style={styles.goalAchievedText}>🎉 Goal Achieved! You are amazing!</Text>
                 <Text style={styles.goalAchievedSubText}>Time to set a bigger target?</Text>
              </View>
-          )}
+          ) : null}
         </>
       )}
     </View>
