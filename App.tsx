@@ -120,7 +120,6 @@ interface CallState {
 
 // --- Constants ---
 const MAX_NAGS = 7; // Maximum number of follow-up calls for a single item.
-const NAG_INTERVAL_MS = 20000; // 20 seconds between nag attempts for demo purposes.
 const LOCAL_STORAGE_KEY = 'returnley-transactions';
 const AI_TONE_KEY = 'returnley-ai-tone';
 const USER_PROFILE_KEY = 'returnley-user-profile';
@@ -195,7 +194,12 @@ export default function App() {
 
         const storedProfile = await AsyncStorage.getItem(USER_PROFILE_KEY);
         if (storedProfile) {
-          setUserProfile(JSON.parse(storedProfile));
+          const parsed = JSON.parse(storedProfile);
+          setUserProfile({
+            ...parsed,
+            minCallAmount: parsed.minCallAmount ?? 20,
+            nagFrequency: parsed.nagFrequency ?? 2,
+          });
         }
 
         const storedTone = await AsyncStorage.getItem(AI_TONE_KEY);
@@ -426,9 +430,13 @@ export default function App() {
       } else if (result.analysis.isNecessary) {
           status = TransactionStatus.Approved;
       } else if (isReturnable) {
+          const minAmount = userProfile?.minCallAmount ?? 0;
+          const nagFreq = userProfile?.nagFrequency ?? 0;
           // If unnecessary and returnable, set a "backup" nag for 1 minute from now
-          // in case they miss the immediate call.
-          nextNagTimestamp = Date.now() + 60000;
+          // in case they miss the immediate call, only if amount >= minAmount and nagFreq > 0.
+          if (amount >= minAmount && nagFreq > 0) {
+              nextNagTimestamp = Date.now() + 60000;
+          }
       }
 
       const newTransaction: Transaction = {
@@ -449,8 +457,12 @@ export default function App() {
 
       setTransactions(prev => [newTransaction, ...prev]);
 
-      // Only trigger the call if it's Unnecessary AND NOT an Urge.
-      if (!analysis?.isNecessary && !isUrge) {
+      // Only trigger the call if it's Unnecessary AND NOT an Urge AND >= minCallAmount.
+      const shouldCall = !analysis?.isNecessary && 
+                         !isUrge && 
+                         (userProfile ? amount >= userProfile.minCallAmount : true);
+
+      if (shouldCall) {
         setCallState?.({
           isActive: true,
           transaction: newTransaction,
@@ -577,7 +589,9 @@ export default function App() {
 
             // Determine the next nag timestamp if unnecessary and returnable
             let nextNagTimestamp: number | undefined;
-            if (!result.analysis.isNecessary && transaction.isReturnable) {
+            const minAmount = userProfile?.minCallAmount ?? 0;
+            const nagFreq = userProfile?.nagFrequency ?? 0;
+            if (!result.analysis.isNecessary && transaction.isReturnable && transaction.amount >= minAmount && nagFreq > 0) {
                 nextNagTimestamp = Date.now() + 60000;
             }
 
@@ -678,27 +692,32 @@ export default function App() {
 
       let newStatus = t.status;
       let newNagCount = t.nagCount;
-      let newTimestamp = t.nextNagTimestamp;
+      let newTimestamp = undefined; // Default to no nag
 
       if (decision === 'return') {
         newStatus = TransactionStatus.Returned;
-        newTimestamp = undefined;
       } else { 
         newStatus = TransactionStatus.Flagged;
         const isFirstTimeFlagged = t.nagCount === 0;
 
-        // Lowered threshold from 250 to 0 (or a very small amount)
-        if (amount > 0 && isReturnable) {
+        // Honor minCallAmount if userProfile exists, otherwise assume 0
+        const minAmount = userProfile?.minCallAmount ?? 0;
+        const nagFreq = userProfile?.nagFrequency ?? 0;
+
+        if (amount >= minAmount && isReturnable && nagFreq > 0) {
+            // Calculate interval in milliseconds (nagFreq is in hours)
+            const intervalMs = nagFreq * 60 * 60 * 1000;
+            
             if (isFirstTimeFlagged) {
                 newNagCount = 1;
-                newTimestamp = Date.now() + NAG_INTERVAL_MS;
+                newTimestamp = Date.now() + intervalMs;
             } else {
                 newNagCount = t.nagCount + 1;
                 if (newNagCount >= MAX_NAGS) {
                     newStatus = TransactionStatus.Kept;
                     newTimestamp = undefined;
                 } else {
-                    newTimestamp = Date.now() + NAG_INTERVAL_MS;
+                    newTimestamp = Date.now() + intervalMs;
                 }
             }
         }
@@ -1001,6 +1020,8 @@ export default function App() {
             aiTone={aiTone}
             onSetAiTone={setAiTone}
             onClearHistory={handleClearHistory}
+            userProfile={userProfile}
+            onUpdateProfile={setUserProfile}
           />
         )}
 

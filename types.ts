@@ -77,4 +77,6 @@ export interface UserProfile {
   financialWeakness: string;
   savingsGoal: string;
   goalAmount: number;
+  minCallAmount: number;
+  nagFrequency: number; // in hours, 0 means never
 }

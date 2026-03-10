@@ -1,120 +1,216 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { UserProfile } from '../types';
+import { Ionicons } from '@expo/vector-icons';
 
 interface OnboardingModalProps {
   onComplete: (profile: UserProfile) => void;
 }
 
+const { width } = Dimensions.get('window');
+
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
+  const [step, setStep] = useState(1);
   const [income, setIncome] = useState('');
   const [weakness, setWeakness] = useState('');
   const [goal, setGoal] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
+  const [minCallAmount, setMinCallAmount] = useState('20');
+  const [nagFrequency, setNagFrequency] = useState('2');
+
+  const totalSteps = 3;
+
+  const handleNext = () => {
+    if (step < totalSteps) {
+      setStep(step + 1);
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
 
   const handleSubmit = () => {
-    if (income && weakness && goal && goalAmount) {
+    if (income && weakness && goal && goalAmount && minCallAmount && nagFrequency) {
       onComplete({
         monthlyIncome: parseFloat(income),
         financialWeakness: weakness,
         savingsGoal: goal,
         goalAmount: parseFloat(goalAmount),
+        minCallAmount: parseFloat(minCallAmount),
+        nagFrequency: parseFloat(nagFrequency),
       });
     }
   };
 
+  const renderProgress = () => (
+    <View style={styles.progressContainer}>
+      {[1, 2, 3].map((s) => (
+        <View 
+          key={s} 
+          style={[
+            styles.progressDot, 
+            s <= step ? styles.progressDotActive : styles.progressDotInactive
+          ]} 
+        />
+      ))}
+    </View>
+  );
+
   return (
     <Modal
-      animationType="fade"
+      animationType="slide"
       transparent={true}
       visible={true}
-      onRequestClose={() => {}} // Handle back button press for Android
+      onRequestClose={() => {}}
     >
       <View style={styles.modalBackdrop}>
         <View style={styles.modalContent}>
           <View style={styles.headerContainer}>
             <Text style={styles.welcomeTitle}>
-              Welcome to Returnley
+              {step === 1 ? "Your Profile" : step === 2 ? "Your Goal" : "Your Boundaries"}
             </Text>
             <Text style={styles.welcomeSubtitle}>
-              To be your financial conscience, I need to know a little infomation. 
-              Just so I know who I'm dealing with.
+              {step === 1 
+                ? "First, let's understand your financial situation." 
+                : step === 2 
+                ? "What are we saving for? Give me a target." 
+                : "How strict should I be with you?"}
             </Text>
+            {renderProgress()}
           </View>
 
-          <View style={styles.form}>
-            <View>
-              <Text style={styles.label}>
-                What is your approximate monthly income?
-              </Text>
-              <View style={styles.inputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
-                <TextInput
-                  keyboardType="numeric"
-                  value={income}
-                  onChangeText={setIncome}
-                  style={styles.input}
-                  placeholder="3000"
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-            </View>
+          <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
+            {step === 1 && (
+              <View style={styles.form}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Approximate monthly income?</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      keyboardType="numeric"
+                      value={income}
+                      onChangeText={setIncome}
+                      style={styles.input}
+                      placeholder="3000"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
 
-            <View>
-              <Text style={styles.label}>
-                What is your biggest spending weakness?
-              </Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  value={weakness}
-                  onChangeText={setWeakness}
-                  style={styles.input}
-                  placeholder="e.g., Late night snacks, Tech gadgets, Shoes"
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-            </View>
-
-            <View style={styles.twoColumnInput}>
-              <View style={styles.column}>
-                <Text style={styles.label}>
-                  Main Financial Goal
-                </Text>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    value={goal}
-                    onChangeText={setGoal}
-                    style={styles.input}
-                    placeholder="e.g., Vacation, Debt"
-                    placeholderTextColor="#9CA3AF"
-                  />
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Biggest spending weakness?</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      value={weakness}
+                      onChangeText={setWeakness}
+                      style={styles.input}
+                      placeholder="e.g., Late night snacks, Tech"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
                 </View>
               </View>
-              <View style={styles.column}>
-                <Text style={styles.label}>
-                  Target Amount
-                </Text>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
-                  <TextInput
-                    keyboardType="numeric"
-                    value={goalAmount}
-                    onChangeText={setGoalAmount}
-                    style={styles.input}
-                    placeholder="5000"
-                    placeholderTextColor="#9CA3AF"
-                  />
+            )}
+
+            {step === 2 && (
+              <View style={styles.form}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Financial Goal</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      value={goal}
+                      onChangeText={setGoal}
+                      style={styles.input}
+                      placeholder="e.g., Vacation, Debt"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Target Amount</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      keyboardType="numeric"
+                      value={goalAmount}
+                      onChangeText={setGoalAmount}
+                      style={styles.input}
+                      placeholder="5000"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
+            )}
 
-            <TouchableOpacity
-              onPress={handleSubmit}
-              style={styles.submitButton}
+            {step === 3 && (
+              <View style={styles.form}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Minimum amount to trigger a call?</Text>
+                  <Text style={styles.helperText}>I won't ring you for small stuff.</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      keyboardType="numeric"
+                      value={minCallAmount}
+                      onChangeText={setMinCallAmount}
+                      style={styles.input}
+                      placeholder="20"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nagging frequency (hours)</Text>
+                  <Text style={styles.helperText}>0 means I'll only call you once.</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      keyboardType="numeric"
+                      value={nagFrequency}
+                      onChangeText={setNagFrequency}
+                      style={styles.input}
+                      placeholder="2"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.footer}>
+            {step > 1 ? (
+              <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={20} color="#9CA3AF" />
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+            ) : <View />}
+
+            <TouchableOpacity 
+              onPress={handleNext} 
+              style={[
+                styles.nextButton,
+                (step === 1 && (!income || !weakness)) || 
+                (step === 2 && (!goal || !goalAmount)) ||
+                (step === 3 && (!minCallAmount || !nagFrequency)) 
+                  ? styles.nextButtonDisabled : {}
+              ]}
+              disabled={
+                (step === 1 && (!income || !weakness)) || 
+                (step === 2 && (!goal || !goalAmount)) ||
+                (step === 3 && (!minCallAmount || !nagFrequency))
+              }
             >
-              <Text style={styles.submitButtonText}>
-                Start My Transformation
+              <Text style={styles.nextButtonText}>
+                {step === totalSteps ? "Finish" : "Next"}
               </Text>
+              {step < totalSteps && <Ionicons name="arrow-forward" size={20} color="white" />}
             </TouchableOpacity>
           </View>
         </View>
@@ -126,96 +222,132 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)', // bg-black bg-opacity-90
+    backgroundColor: 'rgba(0, 0, 0, 0.9)', 
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16, // px-4
+    paddingHorizontal: 16,
   },
   modalContent: {
-    backgroundColor: '#1F2937', // bg-gray-800
-    borderRadius: 8, // rounded-lg
-    shadowColor: '#000', // shadow-2xl
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 5.46,
-    elevation: 10,
-    padding: 32, // p-8
+    backgroundColor: '#1F2937', 
+    borderRadius: 24, 
+    padding: 24, 
     width: '100%',
-    maxWidth: 500, // max-w-lg
-    borderColor: 'rgba(126, 34, 206, 0.3)', // border border-purple-500/30
+    maxWidth: 400, 
+    maxHeight: '80%',
+    borderColor: 'rgba(126, 34, 206, 0.3)', 
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   headerContainer: {
-    alignItems: 'center', // text-center
-    marginBottom: 32, // mb-8
+    alignItems: 'center', 
+    marginBottom: 20, 
   },
   welcomeTitle: {
-    fontSize: 28, // text-3xl
-    fontWeight: 'bold', // font-bold
-    // For gradient text: this is an approximation. Actual gradients require special components/libraries.
-    color: '#A78BFA', // from-purple-400
-    marginBottom: 8, // mb-2
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: '#A78BFA', 
+    marginBottom: 8, 
   },
   welcomeSubtitle: {
-    color: '#9CA3AF', // text-gray-400
+    color: '#9CA3AF', 
     textAlign: 'center',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  progressDot: {
+    height: 6,
+    borderRadius: 3,
+  },
+  progressDotActive: {
+    width: 24,
+    backgroundColor: '#7C3AED',
+  },
+  progressDotInactive: {
+    width: 12,
+    backgroundColor: '#374151',
+  },
+  stepContainer: {
+    marginBottom: 20,
   },
   form: {
-    // space-y-6 (simulated by margins)
+    gap: 16,
+  },
+  inputGroup: {
+    marginBottom: 8,
   },
   label: {
-    fontSize: 14, // text-sm
-    fontWeight: '500', // font-medium
-    color: '#D1D5DB', // text-gray-300
-    marginBottom: 4, // mb-1
+    fontSize: 14, 
+    fontWeight: '600', 
+    color: '#D1D5DB', 
+    marginBottom: 8, 
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#111827', // bg-gray-900
-    borderColor: '#374151', // border border-gray-700
+    backgroundColor: '#111827', 
+    borderColor: '#374151', 
     borderWidth: 1,
-    borderRadius: 8, // rounded-lg
-    paddingLeft: 8, // pl-8 due to currency symbol
-    // marginBottom: 24, // space-y-6 - handled by parent View
+    borderRadius: 12, 
+    paddingLeft: 16,
   },
   currencySymbol: {
-    color: '#9CA3AF', // text-gray-500
+    color: '#9CA3AF', 
     marginRight: 4,
+    fontSize: 16,
   },
   input: {
     flex: 1,
-    paddingVertical: 8, // py-2
-    paddingRight: 16, // pr-4
-    color: 'white', // text-white
+    paddingVertical: 12, 
+    paddingRight: 16, 
+    color: 'white', 
     fontSize: 16,
-    // focus:ring-2 focus:ring-purple-500 focus:border-transparent (focus styles are different in RN)
   },
-  twoColumnInput: {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  column: {
-    width: '48%', // Approx half with some space
-  },
-  submitButton: {
-    // approximated gradient with solid color
-    backgroundColor: '#7C3AED', // from-purple-600
-    paddingVertical: 12, // py-3
-    paddingHorizontal: 24, // px-6
-    borderRadius: 8, // rounded-lg
-    shadowColor: '#000', // shadow-lg
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
     alignItems: 'center',
-    marginTop: 24, // space-y-6
+    marginTop: 10,
   },
-  submitButtonText: {
-    color: 'white', // text-white
-    fontWeight: 'bold', // font-bold
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backButtonText: {
+    color: '#9CA3AF',
+    fontSize: 16,
+  },
+  nextButton: {
+    backgroundColor: '#7C3AED', 
+    paddingVertical: 12, 
+    paddingHorizontal: 24, 
+    borderRadius: 12, 
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  nextButtonDisabled: {
+    backgroundColor: '#4B5563',
+    opacity: 0.5,
+  },
+  nextButtonText: {
+    color: 'white', 
+    fontWeight: 'bold', 
     fontSize: 16,
   },
 });
