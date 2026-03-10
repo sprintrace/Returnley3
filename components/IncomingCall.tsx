@@ -173,11 +173,11 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
                       <Text style={styles.replayButtonText}>Replay Message</Text>
                   </TouchableOpacity>
               )}
-              <Text style={styles.decisionPrompt}>You've been advised about the <Text style={styles.decisionPromptHighlight}>{transaction.item}</Text>. What will you do?</Text>
+              <Text style={styles.decisionPrompt}>You&apos;ve been advised about the <Text style={styles.decisionPromptHighlight}>{transaction.item}</Text>. What will you do?</Text>
               {/* Final decision buttons */}
               <View style={styles.buttonRow}>
                 <TouchableOpacity onPress={() => handleDecision('keep')} style={[styles.decisionButton, styles.decisionButtonKeep]}>
-                    <Text style={styles.decisionButtonText}>I'm Keeping It</Text>
+                    <Text style={styles.decisionButtonText}>I&apos;m Keeping It</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDecision('return')} style={[styles.decisionButton, styles.decisionButtonReturn]}>
                     <Text style={styles.decisionButtonText}>I Will Return It</Text>

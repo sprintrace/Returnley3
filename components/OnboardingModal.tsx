@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { UserProfile } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 
 interface OnboardingModalProps {
   onComplete: (profile: UserProfile) => void;
 }
-
-const { width } = Dimensions.get('window');
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
@@ -76,7 +74,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
             </Text>
             <Text style={styles.welcomeSubtitle}>
               {step === 1 
-                ? "First, let's understand your financial situation." 
+                ? "First, let&apos;s understand your financial situation." 
                 : step === 2 
                 ? "What are we saving for? Give me a target." 
                 : "How strict should I be with you?"}
@@ -152,7 +150,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Minimum amount to trigger a call?</Text>
-                  <Text style={styles.helperText}>I won't ring you for small stuff.</Text>
+                  <Text style={styles.helperText}>I won&apos;t ring you for small stuff.</Text>
                   <View style={styles.inputContainer}>
                     <Text style={styles.currencySymbol}>$</Text>
                     <TextInput
@@ -168,7 +166,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Nagging frequency (hours)</Text>
-                  <Text style={styles.helperText}>0 means I'll only call you once.</Text>
+                  <Text style={styles.helperText}>0 means I&apos;ll only call you once.</Text>
                   <View style={styles.inputContainer}>
                     <TextInput
                       keyboardType="numeric"

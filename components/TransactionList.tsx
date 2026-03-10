@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Transaction, TransactionStatus } from '../types';
+import { Transaction } from '../types';
 import { TransactionItem } from './TransactionItem';
 
 /**
@@ -43,6 +43,7 @@ export const TransactionList: React.FC<TransactionListProps> = React.memo(({ tra
     </View>
   );
 });
+TransactionList.displayName = 'TransactionList';
 
 const styles = StyleSheet.create({
   container: {

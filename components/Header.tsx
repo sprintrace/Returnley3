@@ -26,6 +26,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ onLogoClick }) => {
     </View>
   );
 });
+Header.displayName = 'Header';
 
 const styles = StyleSheet.create({
   header: {

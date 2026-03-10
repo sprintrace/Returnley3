@@ -160,6 +160,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = React.memo(({ userOverall
     </View>
   );
 });
+Leaderboard.displayName = 'Leaderboard';
 
 const styles = StyleSheet.create({
   container: {

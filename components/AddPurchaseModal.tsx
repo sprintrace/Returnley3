@@ -140,19 +140,17 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
             
             {isUrgeMode ? (
                 <Text style={styles.urgeMessage}>
-                    The 24-hour rule: Log it now, wait a day. Returnley will analyze if it's worth it.
+                    The 24-hour rule: Log it now, wait a day. Returnley will analyze if it&apos;s worth it.
                 </Text>
             ) : null}
 
             {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
             
-            <View style={styles.form}>
-              
               {/* Informational message for fast food items */}
               {isFastFood && !isUrgeMode && (
                 <View style={styles.fastFoodMessageContainer}>
                   <Text style={styles.fastFoodMessageText}>
-                    <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable.
+                    <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable. You can&apos;t return a burger once you&apos;ve eaten it.
                   </Text>
                 </View>
               )}
@@ -284,7 +282,6 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
           </ScrollView>
         </View>
       </TouchableOpacity>

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 
 /**
  * Props for the PlaidLinkButton component.

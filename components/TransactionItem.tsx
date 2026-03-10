@@ -199,6 +199,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
     </View>
   );
 });
+TransactionItem.displayName = 'TransactionItem';
 
 const itemStyles = StyleSheet.create({
   listItem: {

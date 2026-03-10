@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform, Button } from 'react-native';
-import { Camera, CameraView, useCameraPermissions } from 'expo-camera';
+import React, { useState, useRef, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
 /**
@@ -37,7 +37,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
     };
 
     checkPermission();
-  }, [permission]);
+  }, [permission, requestPermission]);
 
   /**
    * Captures a photo using the camera.
