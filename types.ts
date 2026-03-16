@@ -67,6 +67,8 @@ export interface PurchaseAnalysis {
   estimatedReturnBy?: string;
   /** A short, punchy reaction if this is an urge analysis. */
   hotTake?: string;
+  /** Whether the AI thinks this item is actually returnable (e.g., food is not). */
+  isActuallyReturnable?: boolean;
 }
 
 /**

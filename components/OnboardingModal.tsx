@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { UserProfile } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -66,124 +66,133 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
       visible={true}
       onRequestClose={() => {}}
     >
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalContent}>
-          <View style={styles.headerContainer}>
-            <Text style={styles.welcomeTitle}>
-              {step === 1 ? "Your Profile" : step === 2 ? "Your Goal" : "Your Boundaries"}
-            </Text>
-            <Text style={styles.welcomeSubtitle}>
-              {step === 1 
-                ? "First, let&apos;s understand your financial situation." 
-                : step === 2 
-                ? "What are we saving for? Give me a target." 
-                : "How strict should I be with you?"}
-            </Text>
-            {renderProgress()}
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "padding"}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.headerContainer}>
+              <Text style={styles.welcomeTitle}>
+                {step === 1 ? "Your Profile" : step === 2 ? "Your Goal" : "Your Boundaries"}
+              </Text>
+              <Text style={styles.welcomeSubtitle}>
+                {step === 1 
+                  ? "First, let&apos;s understand your financial situation." 
+                  : step === 2 
+                  ? "What are we saving for? Give me a target." 
+                  : "How strict should I be with you?"}
+              </Text>
+              {renderProgress()}
+            </View>
 
-          <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
-            {step === 1 && (
-              <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Approximate monthly income?</Text>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.currencySymbol}>$</Text>
-                    <TextInput
-                      keyboardType="numeric"
-                      value={income}
-                      onChangeText={setIncome}
-                      style={styles.input}
-                      placeholder="3000"
-                      placeholderTextColor="#9CA3AF"
-                    />
+            <View style={styles.stepContainer}>
+              {step === 1 && (
+                <View style={styles.form}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Approximate monthly income?</Text>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        keyboardType="numeric"
+                        value={income}
+                        onChangeText={setIncome}
+                        style={styles.input}
+                        placeholder="3000"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Biggest spending weakness?</Text>
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        value={weakness}
+                        onChangeText={setWeakness}
+                        style={styles.input}
+                        placeholder="e.g., Late night snacks, Tech"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
                   </View>
                 </View>
+              )}
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Biggest spending weakness?</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      value={weakness}
-                      onChangeText={setWeakness}
-                      style={styles.input}
-                      placeholder="e.g., Late night snacks, Tech"
-                      placeholderTextColor="#9CA3AF"
-                    />
+              {step === 2 && (
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <View style={styles.form}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Financial Goal</Text>
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          value={goal}
+                          onChangeText={setGoal}
+                          style={styles.input}
+                          placeholder="e.g., Vacation, Debt"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Target Amount</Text>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.currencySymbol}>$</Text>
+                        <TextInput
+                          keyboardType="numeric"
+                          value={goalAmount}
+                          onChangeText={setGoalAmount}
+                          style={styles.input}
+                          placeholder="5000"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            )}
+                </ScrollView>
+              )}
 
-            {step === 2 && (
-              <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Financial Goal</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      value={goal}
-                      onChangeText={setGoal}
-                      style={styles.input}
-                      placeholder="e.g., Vacation, Debt"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Target Amount</Text>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.currencySymbol}>$</Text>
-                    <TextInput
-                      keyboardType="numeric"
-                      value={goalAmount}
-                      onChangeText={setGoalAmount}
-                      style={styles.input}
-                      placeholder="5000"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
+              {step === 3 && (
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <View style={styles.form}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Minimum amount to trigger a call?</Text>
+                      <Text style={styles.helperText}>I won&apos;t ring you for small stuff.</Text>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.currencySymbol}>$</Text>
+                        <TextInput
+                          keyboardType="numeric"
+                          value={minCallAmount}
+                          onChangeText={setMinCallAmount}
+                          style={styles.input}
+                          placeholder="20"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
 
-            {step === 3 && (
-              <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Minimum amount to trigger a call?</Text>
-                  <Text style={styles.helperText}>I won&apos;t ring you for small stuff.</Text>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.currencySymbol}>$</Text>
-                    <TextInput
-                      keyboardType="numeric"
-                      value={minCallAmount}
-                      onChangeText={setMinCallAmount}
-                      style={styles.input}
-                      placeholder="20"
-                      placeholderTextColor="#9CA3AF"
-                    />
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Nagging frequency (hours)</Text>
+                      <Text style={styles.helperText}>0 means I&apos;ll only call you once.</Text>
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          keyboardType="numeric"
+                          value={nagFrequency}
+                          onChangeText={setNagFrequency}
+                          style={styles.input}
+                          placeholder="2"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
                   </View>
-                </View>
+                </ScrollView>
+              )}
+            </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Nagging frequency (hours)</Text>
-                  <Text style={styles.helperText}>0 means I&apos;ll only call you once.</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      keyboardType="numeric"
-                      value={nagFrequency}
-                      onChangeText={setNagFrequency}
-                      style={styles.input}
-                      placeholder="2"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-          </ScrollView>
-
-          <View style={styles.footer}>
-            {step > 1 && (
+            <View style={styles.footer}>            {step > 1 && (
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={20} color="#9CA3AF" />
                 <Text style={styles.backButtonText}>Back</Text>
@@ -212,7 +221,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
@@ -225,13 +236,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
+  keyboardAvoidingView: {
+    width: '100%',
+    flex: 1, // Allow KAV to take full space so it can apply padding
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalContent: {
     backgroundColor: '#1F2937', 
     borderRadius: 24, 
     padding: 24, 
     width: '100%',
     maxWidth: 400, 
-    maxHeight: '80%',
+    minHeight: 300, // Add minimum height to prevent collapse
+    maxHeight: '90%', // Increase slightly for more room
     borderColor: 'rgba(126, 34, 206, 0.3)', 
     borderWidth: 1,
     shadowColor: '#000',

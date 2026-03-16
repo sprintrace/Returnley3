@@ -108,9 +108,10 @@ const analyzePurchase = async (
             reasoning: { type: Type.STRING },
             callScript: { type: Type.STRING },
             hotTake: { type: Type.STRING },
-            estimatedReturnBy: { type: Type.STRING }
+            estimatedReturnBy: { type: Type.STRING },
+            isActuallyReturnable: { type: Type.BOOLEAN }
           },
-          required: ["isNecessary", "reasoning", "callScript"],
+          required: ["isNecessary", "reasoning", "callScript", "isActuallyReturnable"],
         },
         temperature: 0.7,
       }
@@ -152,6 +153,48 @@ export const generateNagAudio = async (item: string, amount: number, category: s
 };
 
 /**
+ * Helper to encode raw PCM data into a WAV file format.
+ */
+const encodeWAV = (samples: Int16Array, sampleRate: number): string => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    /* RIFF identifier */
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    /* file length */
+    view.setUint32(4, 36 + samples.length * 2, true);
+    /* RIFF type */
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+    /* format chunk identifier */
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    /* format chunk length */
+    view.setUint32(16, 16, true);
+    /* sample format (raw) */
+    view.setUint16(20, 1, true);
+    /* channel count */
+    view.setUint16(22, 1, true);
+    /* sample rate */
+    view.setUint32(24, sampleRate, true);
+    /* byte rate (sample rate * block align) */
+    view.setUint32(28, sampleRate * 2, true);
+    /* block align (channel count * bytes per sample) */
+    view.setUint16(32, 2, true);
+    /* bits per sample */
+    view.setUint16(34, 16, true);
+    /* data chunk identifier */
+    view.setUint32(36, 0x64617461, false); // "data"
+    /* data chunk length */
+    view.setUint32(40, samples.length * 2, true);
+
+    /* write the PCM samples */
+    for (let i = 0; i < samples.length; i++) {
+        view.setInt16(44 + i * 2, samples[i], true);
+    }
+
+    return Buffer.from(buffer).toString('base64');
+};
+
+/**
  * Generates audio as a Base64 Data URI using the Gemini TTS model.
  * This avoids FileSystem issues by playing audio directly from memory.
  */
@@ -169,26 +212,37 @@ const generateCallAudio = async (text: string): Promise<string> => {
                         prebuiltVoiceConfig: { voiceName: 'Aoede' },
                     },
                 },
-                // Requesting MP3 for better compatibility and smaller data size
-                responseMimeType: "audio/mp3",
             },
         });
 
         const audioPart = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
         const base64AudioData = audioPart?.data;
-        // Fallback to mp3 if mimeType is missing
-        const mimeType = audioPart?.mimeType || 'audio/mp3';
-
+        const mimeType = audioPart?.mimeType || '';
 
         if (!base64AudioData) {
             console.error("No audio data in Gemini response:", JSON.stringify(response, null, 2));
             throw new Error("Failed to generate audio data from Gemini.");
         }
 
-        console.log(`Generated audio: ${mimeType}, length: ${base64AudioData.length}`);
+        console.log(`Gemini returned audio: ${mimeType}, length: ${base64AudioData.length}`);
 
-        // Return as a Data URI with the correct mime type
-        return `data:${mimeType};base64,${base64AudioData}`;
+        // If it's the L16 PCM format (which Gemini often returns for TTS), 
+        // we wrap it in a WAV header to make it playable by Expo/Standard players.
+        if (mimeType.includes('L16') || mimeType.includes('pcm')) {
+            const rawBuffer = Buffer.from(base64AudioData, 'base64');
+            // Ensure we handle the buffer correctly, avoiding issues with small or malformed responses
+            const samples = new Int16Array(rawBuffer.buffer, rawBuffer.byteOffset, rawBuffer.length / 2);
+            
+            // Extract sample rate from mimeType if possible, default to 24000
+            let sampleRate = 24000;
+            const rateMatch = mimeType.match(/rate=(\d+)/);
+            if (rateMatch) sampleRate = parseInt(rateMatch[1]);
+
+            const wavBase64 = encodeWAV(samples, sampleRate);
+            return `data:audio/wav;base64,${wavBase64}`;
+        }
+
+        return `data:${mimeType || 'audio/mp3'};base64,${base64AudioData}`;
     } catch (error) {
         console.error("Error in generateCallAudio:", error);
         throw error;

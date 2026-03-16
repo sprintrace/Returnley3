@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform, ScrollView } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { CATEGORIES } from '../lib/categories';
 import { Transaction } from '../types';
@@ -109,13 +109,15 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
       visible={true} // Modal is always visible when rendered
       // For Android back button
       onRequestClose={onClose} >
-      <TouchableOpacity 
-        style={styles.modalBackdrop} 
-        activeOpacity={1} 
-        // Close when tapping outside
-        onPressOut={onClose} >
-        <View style={styles.modalContent} onStartShouldSetResponder={() => true}> {/* Prevent propagation */}
-          <ScrollView showsVerticalScrollIndicator={false}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "padding"}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={0}
+          >
+            <View style={styles.modalContent} onStartShouldSetResponder={() => true}> {/* Prevent propagation */}
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Toggle between Purchase and Urge */}
             <View style={styles.toggleContainer}>
                 <TouchableOpacity
@@ -284,7 +286,9 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
               </View>
           </ScrollView>
         </View>
-      </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
@@ -295,6 +299,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  keyboardAvoidingView: {
+    width: '100%',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContent: {
     backgroundColor: '#1F2937', // bg-gray-800
@@ -307,6 +317,7 @@ const styles = StyleSheet.create({
     padding: 24, // p-6
     width: '90%', // w-full max-w-md
     maxWidth: 400,
+    minHeight: 300,
     maxHeight: '90%',
     borderColor: '#374151', // border border-gray-700
     borderWidth: 1,
