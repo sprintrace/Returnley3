@@ -89,23 +89,20 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
       <View style={itemStyles.contentWrapper}>
         <View style={itemStyles.mainInfo}>
           <View style={itemStyles.iconContainer}>
-            {!transaction.isExample && (
-              <Ionicons name={currentStyles.iconName as any} size={24} color={(currentStyles.text as any).color} />
-            )}
-            </View>
+            <Ionicons name={currentStyles.iconName as any} size={24} color={(currentStyles.text as any).color} />
+          </View>
           <View style={itemStyles.textInfo}>
             <Text style={itemStyles.itemText}>
-            {transaction.item}
-            {transaction.isExample ? <Text> (Example)</Text> : null}
-          </Text>
+              {transaction.item}
+            </Text>
             <View style={itemStyles.categoryDateContainer}>
               <Text style={itemStyles.categoryDateText}>{transaction.category} - {transaction.date}</Text>
-              {!transaction.isReturnable && transaction.status !== TransactionStatus.Urge && !transaction.isExample &&(
+              {!transaction.isReturnable && transaction.status !== TransactionStatus.Urge && (
                 <View style={itemStyles.finalSaleBadge}>
                   <Text style={itemStyles.finalSaleBadgeText}>Final Sale</Text>
                 </View>
               )}
-              {transaction.status === TransactionStatus.Urge && !transaction.isExample &&(
+              {transaction.status === TransactionStatus.Urge && (
                 <View style={itemStyles.cooldownBadge}>
                   <Text style={itemStyles.cooldownBadgeText}>24h Cooldown</Text>
                 </View>
@@ -117,7 +114,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
           <Text style={itemStyles.amountText}>${transaction.amount.toFixed(2)}</Text>
           
           {/* Conditionally render action buttons or status text */}
-          {!transaction.isExample && canManuallyAct ? (
+          {canManuallyAct ? (
             <View style={itemStyles.actionButtonsContainer}>
                 {transaction.status === TransactionStatus.Urge ? (
                     <>
@@ -150,7 +147,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
           ) : (
             <View style={itemStyles.statusInfoContainer}>
               {/* Visual indicator for items in the nag cycle */}
-              {isBeingNagged && !transaction.isExample &&(
+              {isBeingNagged && (
                 <View style={itemStyles.naggedIndicator} />
               )}
               {/* Error icon with a tooltip for per-transaction errors */}
@@ -161,7 +158,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
               )}
               
               {/* Render the toggle switch for Kept/Returned items */}
-              {canToggleStatus && !transaction.isExample ? (
+              {canToggleStatus ? (
                  <View style={itemStyles.statusToggleContainer}>
                     <Text style={[itemStyles.statusToggleText, currentStyles.text]}>{transaction.status}</Text>
                     <Switch

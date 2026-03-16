@@ -25,7 +25,6 @@ import {
   AI_TONE_KEY, 
   USER_PROFILE_KEY, 
   AiTone, 
-  getSampleTransactions 
 } from './lib/constants';
 import { isFastFoodPurchase } from './lib/utils';
 import { styles } from './App.styles';
@@ -82,7 +81,7 @@ export default function App() {
         ]);
 
         if (storedTx) setTransactions(JSON.parse(storedTx));
-        else setTransactions(getSampleTransactions());
+        else setTransactions([]);
 
         if (storedProfile) {
           const parsed = JSON.parse(storedProfile);
@@ -228,17 +227,12 @@ export default function App() {
   // --- Derived State (Memoized) ---
 
   const stats = useMemo(() => {
-    const real = transactions.filter(t => !t.isExample);
-    const hasReal = real.length > 0;
-    const source = hasReal ? real : transactions;
-    
-    const returned = source.filter(t => t.status === TransactionStatus.Returned);
-    const shameful = source.filter(t => t.status === TransactionStatus.Kept);
-    const recent = source.filter(t => ![TransactionStatus.Kept, TransactionStatus.Returned].includes(t.status));
-    const totalSaved = real.filter(t => t.status === TransactionStatus.Returned).reduce((s, t) => s + t.amount, 0);
-    const displayedSaved = hasReal ? totalSaved : transactions.filter(t => t.status === TransactionStatus.Returned && t.isExample).reduce((s, t) => s + t.amount, 0);
+    const returned = transactions.filter(t => t.status === TransactionStatus.Returned);
+    const shameful = transactions.filter(t => t.status === TransactionStatus.Kept);
+    const recent = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const totalSaved = returned.reduce((s, t) => s + t.amount, 0);
 
-    return { returned, shameful, recent, totalSaved, displayedSaved, hasReal };
+    return { returned, shameful, recent, totalSaved };
   }, [transactions]);
 
   // --- Render Helpers ---
@@ -278,13 +272,32 @@ export default function App() {
             
             {renderTabs()}
 
-            {activeTab === 'recent' && <TransactionList title="Activity Journal" transactions={stats.recent} onQuickAction={(id, action) => { /* handleQuickAction logic */ }}/>}
-            {activeTab === 'shameful' && <TransactionList title="Shameful Purchases" transactions={stats.shameful} onStatusToggle={id => updateTransactionStatus(id, TransactionStatus.Returned)} />}
+            {activeTab === 'recent' && (
+              <TransactionList 
+                title="Activity Journal" 
+                transactions={stats.recent} 
+                emptyBlurb="The activity journal is used to keep track of all the transactions you've made. It shows pending, approved, or transactions flagged for manual review (which happens if Returnley gets confused)."
+                onQuickAction={(id, action) => { /* handleQuickAction logic */ }}
+              />
+            )}
+            {activeTab === 'shameful' && (
+              <TransactionList 
+                title="Shameful Purchases" 
+                transactions={stats.shameful} 
+                emptyBlurb="This is where your shameful purchases live—the things you kept even though you probably shouldn't have. Own your mistakes."
+                onStatusToggle={id => updateTransactionStatus(id, TransactionStatus.Returned)} 
+              />
+            )}
             {activeTab === 'wins' && (
               <View>
-                <View style={styles.totalSavedCard}><Text style={styles.totalSavedTitle}>Total Money Saved</Text><Text style={styles.totalSavedAmount}>${stats.displayedSaved.toFixed(2)}</Text></View>
+                <View style={styles.totalSavedCard}><Text style={styles.totalSavedTitle}>Total Money Saved</Text><Text style={styles.totalSavedAmount}>${stats.totalSaved.toFixed(2)}</Text></View>
                 <GoalProgress currentSaved={stats.totalSaved * 0.4} totalReturned={stats.totalSaved} goalName={userProfile?.savingsGoal || 'Savings'} goalAmount={userProfile?.goalAmount || 1000} onUpdateGoal={(n, a) => setUserProfile(p => p ? { ...p, savingsGoal: n, goalAmount: a } : null)} />
-                <TransactionList title="Return Wins" transactions={stats.returned} onStatusToggle={id => updateTransactionStatus(id, TransactionStatus.Kept)} />
+                <TransactionList 
+                  title="Return Wins" 
+                  transactions={stats.returned} 
+                  emptyBlurb="These are your wins! Every item here is money back in your pocket because you chose to return it instead of keeping it."
+                  onStatusToggle={id => updateTransactionStatus(id, TransactionStatus.Kept)} 
+                />
               </View>
             )}
             {activeTab === 'leaderboard' && <Leaderboard userOverallSavings={stats.totalSaved} userMonthlySavings={0} />}
@@ -298,7 +311,7 @@ export default function App() {
         </View>
         {isScannerOpen && <ReceiptScannerModal onClose={() => setIsScannerOpen(false)} onConfirm={async (uri) => { setIsScannerOpen(false); setIsLoading(true); try { const r = await analyzeReceipt(uri); setPrefilledData(r); setIsModalOpen(true); } catch(e) { setError('Scan failed'); } finally { setIsLoading(false); } }} />}
         {isModalOpen && <AddPurchaseModal onClose={() => { setIsModalOpen(false); setPrefilledData(null); }} onSubmit={handleAddPurchase} initialData={prefilledData} />}
-        {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} aiTone={aiTone} onSetAiTone={setAiTone} onClearHistory={() => { setTransactions(getSampleTransactions()); setIsSettingsModalOpen(false); }} userProfile={userProfile} onUpdateProfile={setUserProfile} />}
+        {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} aiTone={aiTone} onSetAiTone={setAiTone} onClearHistory={() => { setTransactions([]); setIsSettingsModalOpen(false); }} userProfile={userProfile} onUpdateProfile={setUserProfile} />}
         {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && <IncomingCall transaction={callState.transaction} analysis={callState.analysis} audioUrl={callState.audioUrl} onResolve={handleCallResolve} onAnswer={() => Notifications.dismissAllNotificationsAsync()} />}
       </SafeAreaView>
     </SafeAreaProvider>
