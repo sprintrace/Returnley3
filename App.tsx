@@ -224,6 +224,37 @@ export default function App() {
     setCallState({ isActive: false, transaction: null, analysis: null, audioUrl: null });
   }, [callState, scheduleNotification, userProfile]);
 
+  const handleQuickAction = useCallback(async (id: string, action: 'return' | 'keep' | 'buy') => {
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+
+    await Notifications.dismissAllNotificationsAsync();
+
+    if (action === 'buy') {
+        // For urges, moving to Pending triggers the "Return/Keep" cycle after a real purchase
+        // In a real app, this might trigger a new AI analysis.
+        setTransactions(prev => prev.map(t => 
+            t.id === id ? { ...t, status: TransactionStatus.Pending, date: new Date().toISOString().split('T')[0] } : t
+        ));
+        return;
+    }
+
+    const newStatus = action === 'return' ? TransactionStatus.Returned : TransactionStatus.Kept;
+    
+    setTransactions(prev => prev.map(t => 
+      t.id === id ? { ...t, status: newStatus, nextNagTimestamp: undefined } : t
+    ));
+
+    if (action === 'return' && transaction.returnBy) {
+        scheduleNotification(
+            "Return Reminder", 
+            `Don't forget to return the ${transaction.item}!`, 
+            Math.max(Date.now() + 10000, new Date(transaction.returnBy).getTime() - 86400000), 
+            { transactionId: id, type: 'return_reminder' }
+        );
+    }
+  }, [transactions, scheduleNotification]);
+
   // --- Derived State (Memoized) ---
 
   const stats = useMemo(() => {
@@ -277,7 +308,7 @@ export default function App() {
                 title="Activity Journal" 
                 transactions={stats.recent} 
                 emptyBlurb="The activity journal is used to keep track of all the transactions you've made. It shows pending, approved, or transactions flagged for manual review (which happens if Returnley gets confused)."
-                onQuickAction={(id, action) => { /* handleQuickAction logic */ }}
+                onQuickAction={handleQuickAction}
               />
             )}
             {activeTab === 'shameful' && (
