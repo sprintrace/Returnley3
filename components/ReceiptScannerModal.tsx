@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Platform, BackHandler } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -38,6 +38,29 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
 
     checkPermission();
   }, [permission, requestPermission]);
+
+  useEffect(() => {
+    const backAction = () => {
+      if (capturedImageUri) {
+        handleRetake();
+        return true; // Prevent default behavior
+      }
+      // If no image is captured, the default onRequestClose will be triggered by the modal,
+      // but we call onClose directly to be explicit and handle it consistently.
+      onClose();
+      return true; // Prevent default behavior
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
+    );
+
+    return () => backHandler.remove();
+    // handleRetake is not memoized, so we use a stable closure pattern if needed,
+    // but for this simple case, direct inclusion is fine. Re-adding handleRetake
+    // on each render is acceptable here.
+  }, [capturedImageUri, onClose]);
 
   /**
    * Captures a photo using the camera.

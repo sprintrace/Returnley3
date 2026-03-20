@@ -216,12 +216,14 @@ const styles = StyleSheet.create({
     fontSize: 18, // text-lg
     fontWeight: '600', // font-semibold
     color: 'white',
+    flexShrink: 1,
   },
   toggleButtonGroup: {
     backgroundColor: '#4B5563', // bg-gray-700
     padding: 4, // p-1
     borderRadius: 8, // rounded-lg
     flexDirection: 'row', // flex
+    marginLeft: 8,
     // space-x-1 (marginRight on buttons)
   },
   toggleButton: {

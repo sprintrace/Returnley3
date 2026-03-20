@@ -92,7 +92,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               {step === 1 && (
                 <View style={styles.form}>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Approximate monthly income?</Text>
+                    <Text style={styles.label}>What's your estimated monthly take-home pay?</Text>
                     <View style={styles.inputContainer}>
                       <Text style={styles.currencySymbol}>$</Text>
                       <TextInput
@@ -158,8 +158,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <View style={styles.form}>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Minimum amount to trigger a call?</Text>
-                      <Text style={styles.helperText}>I won&apos;t ring you for small stuff.</Text>
+                      <Text style={styles.label}>Minimum purchase amount for an alert?</Text>
+                                            <Text style={styles.helperText}>I won't bother you about small purchases.</Text>
                       <View style={styles.inputContainer}>
                         <Text style={styles.currencySymbol}>$</Text>
                         <TextInput
@@ -174,8 +174,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
                     </View>
 
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Nagging frequency (hours)</Text>
-                      <Text style={styles.helperText}>0 means I&apos;ll only call you once.</Text>
+                      <Text style={styles.label}>Follow-up frequency (in hours)?</Text>
+                                            <Text style={styles.helperText}>Set how often I check in after the first alert. Use 0 for just one.</Text>
                       <View style={styles.inputContainer}>
                         <TextInput
                           keyboardType="numeric"

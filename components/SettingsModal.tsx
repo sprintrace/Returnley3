@@ -45,7 +45,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <View style={styles.modalBackdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
           style={styles.keyboardAvoidingView}
         >
           <View style={styles.modalContent}>
@@ -113,8 +113,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               {/* Threshold Setting */}
               <View style={styles.sectionItem}>
-                <Text style={styles.sectionTitle}>Call Threshold</Text>
-                <Text style={styles.sectionDescription}>Minimum amount to trigger an immediate call.</Text>
+                <Text style={styles.sectionTitle}>Alert Threshold</Text>
+                <Text style={styles.sectionDescription}>Minimum purchase amount for an alert.</Text>
                 <View style={styles.inputContainer}>
                   <Text style={styles.currencySymbol}>$</Text>
                   <TextInput
@@ -135,8 +135,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               {/* Nagging Frequency Setting */}
               <View style={styles.sectionItem}>
-                <Text style={styles.sectionTitle}>Nagging Frequency</Text>
-                <Text style={styles.sectionDescription}>How often I should call to nag you (in hours). 0 = never.</Text>
+                <Text style={styles.sectionTitle}>Follow-up Frequency</Text>
+                <Text style={styles.sectionDescription}>How often to check in after an alert (in hours). Use 0 for just one.</Text>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.input}
