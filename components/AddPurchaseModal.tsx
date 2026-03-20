@@ -39,13 +39,14 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
   const [emotionalContext, setEmotionalContext] = useState(EMOTIONS[0]);
   const [error, setError] = useState('');
 
-  // Automatically detect if the item is potentially fast food based on category or keywords.
-  const isFastFood = useMemo(() => {
-    if (category === 'Fast Food') {
+  // Automatically detect if the item is potentially consumable based on category or keywords.
+  const isConsumable = useMemo(() => {
+    const consumableCategories = ['Fast Food', 'Dining & Entertainment', 'Groceries'];
+    if (consumableCategories.includes(category)) {
       return true;
     }
     const lowerCaseItem = item.toLowerCase();
-    // Check if the item name contains any of the defined fast food keywords.
+    // Check if the item name contains any of the defined fast food/consumable keywords.
     return FAST_FOOD_KEYWORDS.some(keyword => lowerCaseItem.includes(keyword));
   }, [item, category]);
 
@@ -65,14 +66,13 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
   }, [initialData]);
 
   /**
-   * Effect to enforce non-returnable status for the 'Fast Food' category.
+   * Effect to enforce non-returnable status for consumable items.
    */
   useEffect(() => {
-    // Only force the checkbox to be checked if the category is explicitly 'Fast Food'.
-    if (category === 'Fast Food') {
+    if (isConsumable) {
       setIsFinalSale(true);
     }
-  }, [category]);
+  }, [isConsumable]);
 
   /**
    * Handles the form submission event.
@@ -148,11 +148,11 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
 
             {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
             
-              {/* Informational message for fast food items */}
-              {isFastFood && !isUrgeMode && (
+              {/* Informational message for consumable items */}
+              {isConsumable && !isUrgeMode && (
                 <View style={styles.fastFoodMessageContainer}>
                   <Text style={styles.fastFoodMessageText}>
-                    <Text style={styles.fastFoodMessageTextBold}>Note:</Text> Fast food items are often non-refundable. You can&apos;t return a burger once you&apos;ve eaten it.
+                    <Text style={styles.fastFoodMessageTextBold}>Note:</Text> This is a consumable item and cannot be returned once consumed.
                   </Text>
                 </View>
               )}
@@ -218,11 +218,11 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                     <Switch
                       onValueChange={setIsFinalSale}
                       value={isFinalSale}
-                      disabled={category === 'Fast Food'}
+                      disabled={isConsumable}
                       trackColor={{ false: "#767577", true: "#81b0ff" }}
                       thumbColor={isFinalSale ? "#f5dd4b" : "#f4f3f4"}
                       ios_backgroundColor="#3e3e3e"/>
-                    <Text style={[styles.switchLabel, category === 'Fast Food' && styles.disabledText]}>
+                    <Text style={[styles.switchLabel, isConsumable && styles.disabledText]}>
                       This is a final sale item (cannot be returned)
                     </Text>
                   </View>

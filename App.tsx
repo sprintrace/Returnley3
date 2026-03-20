@@ -26,7 +26,7 @@ import {
   USER_PROFILE_KEY, 
   AiTone, 
 } from './lib/constants';
-import { isFastFoodPurchase } from './lib/utils';
+import { isConsumablePurchase, isShamefulConsumable } from './lib/utils';
 import { styles } from './App.styles';
 
 // Configure notifications to show alerts even when the app is in foreground
@@ -168,8 +168,8 @@ export default function App() {
     setPrefilledData(null);
     if (!item || !category) return setError('Missing item or category.');
 
-    if (isFastFoodPurchase(item, category) && !isReturnable && !isUrge) {
-      return setTransactions(prev => [{ id: Date.now().toString(), item, amount, category: 'Fast Food', status: TransactionStatus.Kept, date: new Date().toISOString().split('T')[0], isReturnable: false, nagCount: MAX_NAGS, justification, emotionalContext }, ...prev]);
+    if (isShamefulConsumable(item, category) && !isReturnable && !isUrge) {
+      return setTransactions(prev => [{ id: Date.now().toString(), item, amount, category, status: TransactionStatus.Kept, date: new Date().toISOString().split('T')[0], isReturnable: false, nagCount: MAX_NAGS, justification, emotionalContext }, ...prev]);
     }
 
     setIsLoading(true);
@@ -177,28 +177,50 @@ export default function App() {
     setError(null);
 
     try {
-      const { analysis, audioUrl } = await analyzePurchaseAndGenerateAudio(item, amount, category, isReturnable, returnBy, justification, aiTone, userProfile || undefined, emotionalContext, isUrge);
+      const { analysis, audioUrl } = await analyzePurchaseAndGenerateAudio(item, amount, category, isReturnable, returnBy, justification, aiTone, userProfile || undefined, emotionalContext, !!isUrge);
 
       console.log('Gemini Analysis:', JSON.stringify(analysis, null, 2));
       console.log('Audio URL Generated:', !!audioUrl);
 
+      const isFlagged = !analysis.isNecessary;
+      const isBelowThreshold = userProfile ? amount < userProfile.minCallAmount : false;
+      const shouldCall = isFlagged && !isUrge && !isBelowThreshold;
+
       let nextNagTimestamp: number | undefined;
-      if (!isUrge && !analysis.isNecessary && isReturnable && amount >= (userProfile?.minCallAmount ?? 0)) {
+      if (shouldCall && isReturnable) {
           nextNagTimestamp = Date.now() + 60000;
       }
 
-      const newTx: Transaction = { id: Date.now().toString(), item, amount, category, status: isUrge ? TransactionStatus.Urge : (analysis.isNecessary ? TransactionStatus.Approved : TransactionStatus.Pending), date: new Date().toISOString().split('T')[0], isReturnable, returnBy: analysis.estimatedReturnBy || returnBy, justification, nagCount: 0, nextNagTimestamp, emotionalContext, hotTake: analysis.hotTake };
+      const status = isUrge 
+        ? TransactionStatus.Urge 
+        : (isFlagged && !isBelowThreshold ? TransactionStatus.Pending : TransactionStatus.Approved);
+
+      const newTx: Transaction = { 
+        id: Date.now().toString(), 
+        item, 
+        amount, 
+        category, 
+        status, 
+        date: new Date().toISOString().split('T')[0], 
+        isReturnable, 
+        returnBy: analysis.estimatedReturnBy || returnBy, 
+        justification, 
+        nagCount: 0, 
+        nextNagTimestamp, 
+        emotionalContext, 
+        hotTake: analysis.hotTake 
+      };
 
       setTransactions(prev => [newTx, ...prev]);
 
-      const shouldCall = !analysis.isNecessary && !isUrge && (userProfile ? amount >= userProfile.minCallAmount : true);
       console.log('Should trigger call overlay:', shouldCall);
 
       if (shouldCall) {
         setCallState({ isActive: true, transaction: newTx, analysis, audioUrl });
         if (nextNagTimestamp) scheduleNotification("Returnley Calling...", `I'm waiting for your answer about that ${item}.`, nextNagTimestamp, { transactionId: newTx.id, type: 'initial_nag_backup' });
       }
-    } catch (err) {      setError('Analysis failed. Flagged for review.');
+    } catch (err) {
+      setError('Analysis failed. Flagged for review.');
       setTransactions(prev => [{ id: Date.now().toString(), item, amount, category, status: isUrge ? TransactionStatus.Urge : TransactionStatus.Flagged, date: new Date().toISOString().split('T')[0], isReturnable, returnBy, justification, nagCount: 0, emotionalContext, error: 'Analysis failed.' }, ...prev]);
     } finally { setIsLoading(false); }
   };
