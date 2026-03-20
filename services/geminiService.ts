@@ -4,21 +4,62 @@ import type { PurchaseAnalysis, UserProfile } from '../types';
 import { CATEGORIES } from "../lib/categories";
 import { Buffer } from 'buffer'; // Expo polyfills Buffer
 import * as ImageManipulator from 'expo-image-manipulator';
-
 import Constants from 'expo-constants';
 
+// --- Configuration ---
 
-const geminiApiKey: string | undefined = process.env.GEMINI_API_KEY
- || Constants.expoConfig?.extra?.geminiApiKey;
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey || process.env.GEMINI_API_KEY;
+const SUPABASE_URL = "https://jvwtwyoreticwsuytaya.supabase.co/functions/v1/gemini-proxy";
+const SUPABASE_ANON_KEY = ((Constants.expoConfig?.extra?.supabaseAnonKey && Constants.expoConfig?.extra?.supabaseAnonKey !== "@SUPABASE_ANON_KEY") 
+    ? Constants.expoConfig?.extra?.supabaseAnonKey 
+    : process.env.SUPABASE_ANON_KEY)?.replace(/["']/g, "")?.trim(); // Remove any quotes and trim
 
-// Ensure the API key is available.
-if (!geminiApiKey) {
-    throw new Error("geminiApiKey is not defined. Ensure GEMINI_API_KEY is set in app.config.ts or as an EAS Secret.");
+// Use local SDK if in dev and key is present (checking both process.env and Constants)
+const useProxy = !__DEV__ || !GEMINI_API_KEY;
+
+let ai: GoogleGenAI | null = null;
+if (!useProxy && GEMINI_API_KEY) {
+    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 }
 
-const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
 type AiTone = 'encouraging' | 'stern' | 'ruthless';
+
+// --- Proxy Helper ---
+
+const callGeminiProxy = async (action: string, payload: any) => {
+    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY === "@SUPABASE_ANON_KEY") {
+        console.error("PROXY ERROR: SUPABASE_ANON_KEY is missing or placeholder.");
+        throw new Error("Missing Supabase Configuration");
+    }
+
+    // DEBUG: Check format (Safe logging)
+    const keyPrefix = SUPABASE_ANON_KEY.substring(0, 3);
+    const keySuffix = SUPABASE_ANON_KEY.substring(SUPABASE_ANON_KEY.length - 3);
+    console.log(`[PROXY DEBUG] Action: ${action}, Len: ${SUPABASE_ANON_KEY.length}, Format: ${keyPrefix}...${keySuffix}`);
+
+    try {
+        const response = await fetch(SUPABASE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({ action, payload })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Proxy HTTP ${response.status}:`, errorText);
+            throw new Error(`Proxy error: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (e: any) {
+        console.error("Fetch/Proxy Exception:", e.message);
+        throw e;
+    }
+};
 
 // --- API Service Functions ---
 
@@ -39,7 +80,6 @@ const analyzePurchase = async (
   ): Promise<PurchaseAnalysis> => {
   
     const model = "gemini-3.1-flash-lite-preview";
-
     const toneMap = {
       encouraging: {
           intro: "You are Returnley, an AI financial conscience. Your tone is firm, but encouraging and your goal is to help users curb compulsive spending.",
@@ -95,33 +135,65 @@ const analyzePurchase = async (
     const today = new Date().toISOString().split('T')[0];
     const prompt = `Purchase Date: ${today}. Item: ${item}, Amount: $${amount}, Category: ${category}, Returnable: ${isReturnable}, Is Urge: ${isUrge}`;
 
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            isNecessary: { type: Type.BOOLEAN },
-            reasoning: { type: Type.STRING },
-            callScript: { type: Type.STRING },
-            hotTake: { type: Type.STRING },
-            estimatedReturnBy: { type: Type.STRING },
-            isActuallyReturnable: { type: Type.BOOLEAN }
-          },
-          required: ["isNecessary", "reasoning", "callScript", "isActuallyReturnable"],
-        },
-        temperature: 0.7,
-      }
-    });
+    if (!useProxy && ai) {
+        // --- Local Path (SDK - Uses camelCase) ---
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        isNecessary: { type: Type.BOOLEAN },
+                        reasoning: { type: Type.STRING },
+                        callScript: { type: Type.STRING },
+                        hotTake: { type: Type.STRING },
+                        estimatedReturnBy: { type: Type.STRING },
+                        isActuallyReturnable: { type: Type.BOOLEAN }
+                    },
+                    required: ["isNecessary", "reasoning", "callScript", "isActuallyReturnable"],
+                },
+                temperature: 0.7,
+            }
+        });
 
-  if (!response.text) throw new Error("AI response malformed");
+        if (!response.text) throw new Error("AI response malformed");
+        let jsonText = response.text.trim();
+        if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+        return JSON.parse(jsonText) as PurchaseAnalysis;
 
-  let jsonText = response.text.trim();
-  if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
-  return JSON.parse(jsonText) as PurchaseAnalysis;
+    } else {
+        // --- Build Path (REST Proxy - Uses snake_case) ---
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            generation_config: {
+                response_mime_type: "application/json",
+                response_schema: {
+                    type: "OBJECT",
+                    properties: {
+                        isNecessary: { type: "BOOLEAN" },
+                        reasoning: { type: "STRING" },
+                        callScript: { type: "STRING" },
+                        hotTake: { type: "STRING" },
+                        estimatedReturnBy: { type: "STRING" },
+                        isActuallyReturnable: { type: "BOOLEAN" }
+                    },
+                    required: ["isNecessary", "reasoning", "callScript", "isActuallyReturnable"],
+                },
+                temperature: 0.7,
+            }
+        };
+
+        const response = await callGeminiProxy('analyzePurchase', payload);
+        const candidate = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidate) throw new Error("AI response malformed");
+        let jsonText = candidate.trim();
+        if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+        return JSON.parse(jsonText) as PurchaseAnalysis;
+    }
 };
 
 export const generateNagAudio = async (item: string, amount: number, category: string, nagCount: number, tone: AiTone = 'encouraging'): Promise<{ nagScript: string; audioUrl: string; }> => {
@@ -141,13 +213,27 @@ export const generateNagAudio = async (item: string, amount: number, category: s
     const systemInstruction = `${selectedTone.intro} Escalation: ${selectedTone.levels[attemptLevelKey]}`;
     const prompt = `Nag script for ${item}, $${amount}, attempt ${nagCount + 1}`;
 
-    const response = await ai.models.generateContent({
-        model: model,
-        contents: [{ parts: [{ text: prompt }] }],
-        config: { systemInstruction, temperature: 0.8 }
-    });
+    let nagScript = "Return this now.";
 
-    const nagScript = response.text || "Return this now.";
+    if (!useProxy && ai) {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: { systemInstruction, temperature: 0.8 }
+        });
+        nagScript = response.text || nagScript;
+    } else {
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            generation_config: { 
+                temperature: 0.8 
+            }
+        };
+        const response = await callGeminiProxy('analyzePurchase', payload);
+        nagScript = response.candidates?.[0]?.content?.parts?.[0]?.text || nagScript;
+    }
+
     const audioUrl = await generateCallAudio(nagScript);
     return { nagScript, audioUrl };
 };
@@ -158,86 +244,74 @@ export const generateNagAudio = async (item: string, amount: number, category: s
 const encodeWAV = (samples: Int16Array, sampleRate: number): string => {
     const buffer = new ArrayBuffer(44 + samples.length * 2);
     const view = new DataView(buffer);
-
-    /* RIFF identifier */
     view.setUint32(0, 0x52494646, false); // "RIFF"
-    /* file length */
     view.setUint32(4, 36 + samples.length * 2, true);
-    /* RIFF type */
     view.setUint32(8, 0x57415645, false); // "WAVE"
-    /* format chunk identifier */
     view.setUint32(12, 0x666d7420, false); // "fmt "
-    /* format chunk length */
     view.setUint32(16, 16, true);
-    /* sample format (raw) */
     view.setUint16(20, 1, true);
-    /* channel count */
     view.setUint16(22, 1, true);
-    /* sample rate */
     view.setUint32(24, sampleRate, true);
-    /* byte rate (sample rate * block align) */
     view.setUint32(28, sampleRate * 2, true);
-    /* block align (channel count * bytes per sample) */
     view.setUint16(32, 2, true);
-    /* bits per sample */
     view.setUint16(34, 16, true);
-    /* data chunk identifier */
     view.setUint32(36, 0x64617461, false); // "data"
-    /* data chunk length */
     view.setUint32(40, samples.length * 2, true);
-
-    /* write the PCM samples */
     for (let i = 0; i < samples.length; i++) {
         view.setInt16(44 + i * 2, samples[i], true);
     }
-
     return Buffer.from(buffer).toString('base64');
 };
 
 /**
  * Generates audio as a Base64 Data URI using the Gemini TTS model.
- * This avoids FileSystem issues by playing audio directly from memory.
  */
 const generateCallAudio = async (text: string): Promise<string> => {
     const ttsModel = "gemini-2.5-flash-preview-tts";
-
     try {
-        const response = await ai.models.generateContent({
-            model: ttsModel,
-            contents: [{ parts: [{ text: text }] }],
-            config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                    voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: 'Aoede' },
+        let audioPart: any;
+
+        if (!useProxy && ai) {
+            const response = await ai.models.generateContent({
+                model: ttsModel,
+                contents: text,
+                config: {
+                    responseModalities: [Modality.AUDIO],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: 'Aoede' },
+                        },
                     },
                 },
-            },
-        });
+            });
+            audioPart = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+        } else {
+            const payload = {
+                contents: [{ parts: [{ text: text }] }],
+                generation_config: {
+                    response_modalities: ["AUDIO"],
+                    speech_config: {
+                        voice_config: {
+                            prebuilt_voice_config: { voice_name: 'Aoede' },
+                        },
+                    },
+                },
+            };
+            const response = await callGeminiProxy('generateAudio', payload);
+            audioPart = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+        }
 
-        const audioPart = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
         const base64AudioData = audioPart?.data;
         const mimeType = audioPart?.mimeType || '';
 
-        if (!base64AudioData) {
-            console.error("No audio data in Gemini response:", JSON.stringify(response, null, 2));
-            throw new Error("Failed to generate audio data from Gemini.");
-        }
+        if (!base64AudioData) throw new Error("Failed to generate audio data from Gemini.");
 
-        console.log(`Gemini returned audio: ${mimeType}, length: ${base64AudioData.length}`);
-
-        // If it's the L16 PCM format (which Gemini often returns for TTS), 
-        // we wrap it in a WAV header to make it playable by Expo/Standard players.
         if (mimeType.includes('L16') || mimeType.includes('pcm')) {
             const rawBuffer = Buffer.from(base64AudioData, 'base64');
-            // Ensure we handle the buffer correctly, avoiding issues with small or malformed responses
             const samples = new Int16Array(rawBuffer.buffer, rawBuffer.byteOffset, rawBuffer.length / 2);
-            
-            // Extract sample rate from mimeType if possible, default to 24000
             let sampleRate = 24000;
             const rateMatch = mimeType.match(/rate=(\d+)/);
             if (rateMatch) sampleRate = parseInt(rateMatch[1]);
-
             const wavBase64 = encodeWAV(samples, sampleRate);
             return `data:audio/wav;base64,${wavBase64}`;
         }
@@ -262,43 +336,76 @@ export const analyzePurchaseAndGenerateAudio = async (
     isUrge: boolean = false
 ): Promise<{ analysis: PurchaseAnalysis; audioUrl: string | null; }> => {
     const analysis = await analyzePurchase(item, amount, category, isReturnable, returnBy, justification, tone, userProfile, emotionalContext, isUrge);
-    
     let audioUrl: string | null = null;
     if (!analysis.isNecessary && analysis.callScript && !isUrge) {
         audioUrl = await generateCallAudio(analysis.callScript);
     }
-    
     return { analysis, audioUrl };
 };
 
 export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
-  const resized = await ImageManipulator.manipulateAsync(imageUri, [{ resize: { width: 1000} }], { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true });
-  if (!resized.base64) throw new Error("Failed to convert image");
+    const resized = await ImageManipulator.manipulateAsync(imageUri, [{ resize: { width: 1000} }], { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+    if (!resized.base64) throw new Error("Failed to convert image");
 
-  const allCategories = Object.values(CATEGORIES).flat();
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
-    contents: { parts: [{ text: "Extract JSON: item, amount, category." }, { inlineData: { mimeType: 'image/jpeg', data: resized.base64 } }] },
-    config: {
-      systemInstruction: `Receipt scanner. Valid categories: ${allCategories.join(', ')}. Return JSON only.`,
-      responseMimeType: "application/json",
-      responseSchema: { type: Type.OBJECT, properties: { item: { type: Type.STRING }, amount: { type: Type.NUMBER }, category: { type: Type.STRING } }, required: ["item", "amount", "category"] },
+    const allCategories = Object.values(CATEGORIES).flat();
+    const model = "gemini-3.1-flash-lite-preview";
+    const systemInstruction = `Receipt scanner. Valid categories: ${allCategories.join(', ')}. Return JSON only.`;
+
+    if (!useProxy && ai) {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: { parts: [{ text: "Extract JSON: item, amount, category." }, { inlineData: { mimeType: 'image/jpeg', data: resized.base64 } }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: { type: Type.OBJECT, properties: { item: { type: Type.STRING }, amount: { type: Type.NUMBER }, category: { type: Type.STRING } }, required: ["item", "amount", "category"] },
+            }
+        });
+        if (!response.text) throw new Error ("Response is null");
+        let jsonText = response.text.trim();
+        if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+        const parsed = JSON.parse(jsonText);
+        if (!allCategories.includes(parsed.category)) parsed.category = 'Shopping';
+        return parsed;
+    } else {
+        const payload = {
+            contents: [{ parts: [{ text: "Extract JSON: item, amount, category." }, { inline_data: { mime_type: 'image/jpeg', data: resized.base64 } }] }],
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            generation_config: {
+                response_mime_type: "application/json",
+                response_schema: { type: "OBJECT", properties: { item: { type: "STRING" }, amount: { type: "NUMBER" }, category: { type: "STRING" } }, required: ["item", "amount", "category"] },
+            }
+        };
+        const response = await callGeminiProxy('analyzePurchase', payload);
+        const candidate = response.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidate) throw new Error ("Response is null");
+        let jsonText = candidate.trim();
+        if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
+        const parsed = JSON.parse(jsonText);
+        if (!allCategories.includes(parsed.category)) parsed.category = 'Shopping';
+        return parsed;
     }
-  });
-  
-  if (!response.text) throw new Error ("Response is null");
-  let jsonText = response.text.trim();
-  if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
-  const parsed = JSON.parse(jsonText);
-  if (!allCategories.includes(parsed.category)) parsed.category = 'Shopping';
-  return parsed;
 };
 
 export const getFinancialTip = async (category: string): Promise<string> => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
-    contents: `Financial tip about: ${category}.`,
-    config: { systemInstruction: "Actionable financial tip, 2 sentences.", temperature: 0.9 }
-  });
-  return response.text || "Save money where you can.";
+    const model = "gemini-3.1-flash-lite-preview";
+    const systemInstruction = "Actionable financial tip, 2 sentences.";
+    const prompt = `Financial tip about: ${category}.`;
+
+    if (!useProxy && ai) {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: { systemInstruction, temperature: 0.9 }
+        });
+        return response.text || "Save money where you can.";
+    } else {
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            generation_config: { temperature: 0.9 }
+        };
+        const response = await callGeminiProxy('analyzePurchase', payload);
+        return response.candidates?.[0]?.content?.parts?.[0]?.text || "Save money where you can.";
+    }
 };

@@ -32,7 +32,6 @@ import { styles } from './App.styles';
 // Configure notifications to show alerts even when the app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
@@ -179,7 +178,10 @@ export default function App() {
 
     try {
       const { analysis, audioUrl } = await analyzePurchaseAndGenerateAudio(item, amount, category, isReturnable, returnBy, justification, aiTone, userProfile || undefined, emotionalContext, isUrge);
-      
+
+      console.log('Gemini Analysis:', JSON.stringify(analysis, null, 2));
+      console.log('Audio URL Generated:', !!audioUrl);
+
       let nextNagTimestamp: number | undefined;
       if (!isUrge && !analysis.isNecessary && isReturnable && amount >= (userProfile?.minCallAmount ?? 0)) {
           nextNagTimestamp = Date.now() + 60000;
@@ -189,12 +191,14 @@ export default function App() {
 
       setTransactions(prev => [newTx, ...prev]);
 
-      if (!analysis.isNecessary && !isUrge && (userProfile ? amount >= userProfile.minCallAmount : true)) {
+      const shouldCall = !analysis.isNecessary && !isUrge && (userProfile ? amount >= userProfile.minCallAmount : true);
+      console.log('Should trigger call overlay:', shouldCall);
+
+      if (shouldCall) {
         setCallState({ isActive: true, transaction: newTx, analysis, audioUrl });
         if (nextNagTimestamp) scheduleNotification("Returnley Calling...", `I'm waiting for your answer about that ${item}.`, nextNagTimestamp, { transactionId: newTx.id, type: 'initial_nag_backup' });
       }
-    } catch (err) {
-      setError('Analysis failed. Flagged for review.');
+    } catch (err) {      setError('Analysis failed. Flagged for review.');
       setTransactions(prev => [{ id: Date.now().toString(), item, amount, category, status: isUrge ? TransactionStatus.Urge : TransactionStatus.Flagged, date: new Date().toISOString().split('T')[0], isReturnable, returnBy, justification, nagCount: 0, emotionalContext, error: 'Analysis failed.' }, ...prev]);
     } finally { setIsLoading(false); }
   };
@@ -340,7 +344,7 @@ export default function App() {
             <TouchableOpacity key={i} onPress={btn.action} style={styles.bottomNavButton}><Ionicons name={btn.icon as any} size={24} color="white" /><Text style={styles.bottomNavButtonText}>{btn.label}</Text></TouchableOpacity>
           ))}
         </View>
-        {isScannerOpen && <ReceiptScannerModal onClose={() => setIsScannerOpen(false)} onConfirm={async (uri) => { setIsScannerOpen(false); setIsLoading(true); try { const r = await analyzeReceipt(uri); setPrefilledData(r); setIsModalOpen(true); } catch(e) { setError('Scan failed'); } finally { setIsLoading(false); } }} />}
+        {isScannerOpen && <ReceiptScannerModal onClose={() => setIsScannerOpen(false)} onConfirm={async (uri) => { setIsScannerOpen(false); setIsLoading(true); try { const r = await analyzeReceipt(uri); setPrefilledData(r); setIsModalOpen(true); } catch(e: any) { console.error('SCAN FAILED ERROR:', e.message || e); if (e.stack) console.error('SCAN FAILED STACK:', e.stack); setError(`Scan failed: ${e.message || 'Unknown error'}`); } finally { setIsLoading(false); } }} />}
         {isModalOpen && <AddPurchaseModal onClose={() => { setIsModalOpen(false); setPrefilledData(null); }} onSubmit={handleAddPurchase} initialData={prefilledData} />}
         {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} aiTone={aiTone} onSetAiTone={setAiTone} onClearHistory={() => { setTransactions([]); setIsSettingsModalOpen(false); }} userProfile={userProfile} onUpdateProfile={setUserProfile} />}
         {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && <IncomingCall transaction={callState.transaction} analysis={callState.analysis} audioUrl={callState.audioUrl} onResolve={handleCallResolve} onAnswer={() => Notifications.dismissAllNotificationsAsync()} />}
