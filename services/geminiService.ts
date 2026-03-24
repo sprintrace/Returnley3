@@ -49,9 +49,16 @@ const callGeminiProxy = async (action: string, payload: any) => {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Proxy HTTP ${response.status}:`, errorText);
-            throw new Error(`Proxy error: ${response.status}`);
+            let errorMessage = `Proxy error: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) errorMessage = errorText;
+            }
+            console.error(`Proxy HTTP ${response.status}:`, errorMessage);
+            throw new Error(errorMessage);
         }
 
         return await response.json();
@@ -344,7 +351,7 @@ export const analyzePurchaseAndGenerateAudio = async (
 };
 
 export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
-    const resized = await ImageManipulator.manipulateAsync(imageUri, [{ resize: { width: 1000} }], { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+    const resized = await ImageManipulator.manipulateAsync(imageUri, [{ resize: { width: 800} }], { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true });
     if (!resized.base64) throw new Error("Failed to convert image");
 
     const allCategories = Object.values(CATEGORIES).flat();

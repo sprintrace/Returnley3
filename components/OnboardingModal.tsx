@@ -66,8 +66,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
       visible={true}
       onRequestClose={() => {}}
     >
+    <View style={styles.modalBackdrop}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.modalBackdrop}>
+        <View style={{ position: 'absolute', width: '100%', height: '100%' }} />
+      </TouchableWithoutFeedback>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "padding"}
             style={styles.keyboardAvoidingView}
@@ -80,7 +82,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               </Text>
               <Text style={styles.welcomeSubtitle}>
                 {step === 1 
-                  ? "First, let&apos;s understand your financial situation." 
+                  ? "First, let\'s understand your financial situation." 
                   : step === 2 
                   ? "What are we saving for? Give me a target." 
                   : "How strict should I be with you?"}
@@ -219,11 +221,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
               </Text>
               {step < totalSteps && <Ionicons name="arrow-forward" size={20} color="white" />}
             </TouchableOpacity>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
+            </View>
+            </View>
+          </KeyboardAvoidingView>
       </View>
-      </TouchableWithoutFeedback>
     </Modal>
   );
 };

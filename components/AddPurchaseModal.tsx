@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, Platform, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Dimensions } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { CATEGORIES } from '../lib/categories';
 import { Transaction } from '../types';
 import { FAST_FOOD_KEYWORDS } from '../lib/keywords';
 import { EMOTIONS } from '../lib/emotions';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddPurchaseModalProps {
   onClose: () => void;
@@ -61,13 +63,13 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
 
   return (
     <Modal animationType="slide" transparent={true} visible={true} onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
+      <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          style={styles.keyboardAvoidingView}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={[styles.modalContent, { maxHeight: SCREEN_HEIGHT * 0.85 }]}>
               <View style={styles.header}>
                 <View style={styles.toggleContainer}>
                   <TouchableOpacity onPress={() => setIsUrgeMode(false)} style={[styles.toggleButton, !isUrgeMode && styles.toggleButtonActivePurple]}>
@@ -80,7 +82,12 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 <Text style={styles.modalTitle}>{isUrgeMode ? 'Log a Purchase Urge' : (initialData ? 'Confirm Your Purchase' : 'Log a New Purchase')}</Text>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.contentScrollView}>
+              <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                keyboardShouldPersistTaps="handled" 
+                style={styles.contentScrollView}
+                contentContainerStyle={styles.scrollContent}
+              >
                 {isUrgeMode && <Text style={styles.urgeMessage}>The 24-hour rule: Log it now, wait a day. Returnley will analyze if it&apos;s worth it.</Text>}
                 {error && <Text style={styles.errorMessage}>{error}</Text>}
                 {isConsumable && !isUrgeMode && (
@@ -139,16 +146,18 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ onClose, onS
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   keyboardAvoidingView: {
-    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBackdrop: {
     flex: 1,
@@ -166,7 +175,6 @@ const styles = StyleSheet.create({
     elevation: 5,
     width: '90%',
     maxWidth: 400,
-    maxHeight: '90%',
     borderColor: '#374151',
     borderWidth: 1,
     flexDirection: 'column',
@@ -178,6 +186,9 @@ const styles = StyleSheet.create({
   },
   contentScrollView: {
     paddingHorizontal: 24,
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   footer: {
     flexDirection: 'row',
