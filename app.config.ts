@@ -53,11 +53,11 @@ export default ({ config }: { config: ExpoConfig}) => {
             backgroundColor: "#ffffff"
         },
         ios: {
-            bundleIdentifier: "com.lovetech.returnley3",
+            bundleIdentifier: "com.returnley.returnley3",
             supportsTablet: true
         },
         android: {
-            package: "com.lovetech.returnley3",
+            package: "com.returnley.returnley3",
             adaptiveIcon: {
                 foregroundImage: "./assets/adaptive-icon.png",
                 backgroundColor: "#ffffff"

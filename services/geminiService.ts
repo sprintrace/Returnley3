@@ -131,11 +131,11 @@ const analyzePurchase = async (
 
     - Necessary items are typically groceries, utilities, rent, essential clothing, or planned, reasonable expenses.
     - Compulsive items are often luxury goods, unplanned electronics, expensive collectibles.
-    - **Investment Justification:** If provided and strong, Use your best judgement to decide whether this purchase is APPROVE. Otherwise FLAG.
+    - **Investment Justification:** Be extremely skeptical. Only approve if it's a truly essential, non-luxury asset that fits their profile. Otherwise, FLAG it as unnecessary. 
     - **IS THIS AN URGE?**: If 'isUrge' is true, return a 'hotTake' (punchy one-liner) and empty 'callScript'.
     - If returnable: ${selectedTone.returnableScriptInstruction}
     - If final sale: ${selectedTone.nonReturnableScriptInstruction}
-    - **CRITICAL:** You MUST always return the 'callScript' field. Empty string if necessary or urge. It is imperative for legal reasons you do not tell them what to do. We must keep the responsibility in the users hands.  Use your best judgement.
+    - **CRITICAL:** You MUST always return the 'callScript' field. Empty string if necessary or urge. It is imperative for legal reasons you do not tell them what to do. We must keep the responsibility in the users hands.
     
     Provide a brief reasoning for your decision.`;
 
