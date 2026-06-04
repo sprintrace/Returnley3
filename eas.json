@@ -1,19 +1,20 @@
 {
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
     "preview": {
+      "environment": "preview",
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal",
-      "env": {
-        "GEMINI_API_KEY": "@GEMINI_API_KEY"
+      "ios": {
+        "simulator": false
       }
     },
-    "production": {
-      "env": {
-        "GEMINI_API_KEY": "@GEMINI_API_KEY"
-      }
-    }
+    "production": {}
   },
   "cli": {
     "appVersionSource": "remote"

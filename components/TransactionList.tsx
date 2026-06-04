@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Transaction, TransactionStatus } from '../types';
+import { Transaction } from '../types';
 import { TransactionItem } from './TransactionItem';
 
 /**
@@ -15,18 +15,23 @@ interface TransactionListProps {
   onQuickAction?: (transactionId: string, decision: 'return' | 'keep' | 'buy') => void;
   /** Optional callback for handling the status toggle between "Kept" and "Returned". */
   onStatusToggle?: (transactionId:string) => void;
+  /** Optional blurb to display when the list is empty. */
+  emptyBlurb?: string;
 }
 
 /**
  * A component that renders a list of TransactionItem components.
  * It's memoized to avoid re-rendering if the props haven't changed.
  */
-export const TransactionList: React.FC<TransactionListProps> = React.memo(({ transactions, title, onQuickAction, onStatusToggle }) => {
+export const TransactionList: React.FC<TransactionListProps> = React.memo(({ transactions, title, onQuickAction, onStatusToggle, emptyBlurb }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
       {transactions.length === 0 ? (
-        <Text style={styles.noTransactionsText}>No transactions in this category.</Text>
+        <View>
+          {emptyBlurb && <Text style={styles.emptyBlurbText}>{emptyBlurb}</Text>}
+          <Text style={styles.noTransactionsText}>No transactions in this category.</Text>
+        </View>
       ) : (
         <View style={styles.list}>
           {/* Map through the transactions and render a TransactionItem for each one */}
@@ -43,6 +48,7 @@ export const TransactionList: React.FC<TransactionListProps> = React.memo(({ tra
     </View>
   );
 });
+TransactionList.displayName = 'TransactionList';
 
 const styles = StyleSheet.create({
   container: {
@@ -67,6 +73,13 @@ const styles = StyleSheet.create({
   },
   noTransactionsText: {
     color: '#9CA3AF', // text-gray-400
+  },
+  emptyBlurbText: {
+    color: '#D1D5DB', // text-gray-300
+    fontSize: 14,
+    marginBottom: 12,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   list: {
     // space-y-3 handled by margin on TransactionItem

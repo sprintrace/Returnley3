@@ -21,8 +21,6 @@ export enum TransactionStatus {
  * Represents a single user purchase record.
  */
 export interface Transaction {
-  /** Indicates if this transaction is a sample/example entry and should be excluded from statistics. */
-  isExample?: boolean;
   /** A unique identifier for the transaction. */
   id: string;
   /** A description of the item purchased. */
@@ -67,6 +65,8 @@ export interface PurchaseAnalysis {
   estimatedReturnBy?: string;
   /** A short, punchy reaction if this is an urge analysis. */
   hotTake?: string;
+  /** Whether the AI thinks this item is actually returnable (e.g., food is not). */
+  isActuallyReturnable?: boolean;
 }
 
 /**
@@ -77,4 +77,6 @@ export interface UserProfile {
   financialWeakness: string;
   savingsGoal: string;
   goalAmount: number;
+  minCallAmount: number;
+  nagFrequency: number; // in hours, 0 means never
 }

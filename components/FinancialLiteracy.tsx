@@ -40,8 +40,9 @@ export const FinancialLiteracy: React.FC = () => {
      * The empty dependency array `[]` ensures this runs only once on mount.
      */
     useEffect(() => {
-        fetchTip();
-    }, []); // Note: `fetchTip` is not in the dependency array because it's stable due to `useCallback`.
+      fetchTip();
+    }, [fetchTip]);
+ // Note: `fetchTip` is not in the dependency array because it's stable due to `useCallback`.
              // However, modern linting rules might suggest adding it, which is also safe.
 
     return (
@@ -174,7 +175,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16, // px-4
         paddingVertical: 8, // py-2
         borderRadius: 9999, // rounded-full
-        transitionDuration: 200, // duration-200
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8, // for gap simulation
