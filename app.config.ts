@@ -50,7 +50,7 @@ export default ({ config }: { config: ExpoConfig}) => {
         splash: {
             image: "./assets/splash-icon.png",
             resizeMode: "contain",
-            backgroundColor: "#ffffff"
+            backgroundColor: "#aa97f6"
         },
         ios: {
             bundleIdentifier: "com.returnley.returnley3",
@@ -60,7 +60,7 @@ export default ({ config }: { config: ExpoConfig}) => {
             package: "com.returnley.returnley3",
             adaptiveIcon: {
                 foregroundImage: "./assets/adaptive-icon.png",
-                backgroundColor: "#ffffff"
+                backgroundColor: "#aa97f6"
             }
         },
         web: {
