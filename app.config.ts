@@ -13,7 +13,7 @@ export default ({ config }: { config: ExpoConfig}) => {
     const isBuild = process.env.EAS_BUILD_PROFILE === "production" || 
                     process.env.EAS_BUILD_PROFILE === "preview" ||
                     process.env.NODE_ENV === "production" || 
-                    process.env.NODE_ENV === "preview";
+                    (process.env.NODE_ENV as string) === "preview";
 
     // Since we use the Supabase Proxy for builds, the GEMINI_API_KEY is NOT required in the APK.
     // However, the SUPABASE_ANON_KEY IS required for the app to function.
@@ -85,6 +85,7 @@ export default ({ config }: { config: ExpoConfig}) => {
                 }
             ],
             "expo-audio",
+            "expo-status-bar"
         ]
     };
 };
