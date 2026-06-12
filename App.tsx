@@ -369,7 +369,7 @@ export default function App() {
         {isScannerOpen && <ReceiptScannerModal onClose={() => setIsScannerOpen(false)} onConfirm={async (uri) => { setIsScannerOpen(false); setIsLoading(true); try { const r = await analyzeReceipt(uri); setPrefilledData(r); setIsModalOpen(true); } catch(e: any) { console.error('SCAN FAILED ERROR:', e.message || e); if (e.stack) console.error('SCAN FAILED STACK:', e.stack); setError(`Scan failed: ${e.message || 'Unknown error'}`); } finally { setIsLoading(false); } }} />}
         {isModalOpen && <AddPurchaseModal onClose={() => { setIsModalOpen(false); setPrefilledData(null); }} onSubmit={handleAddPurchase} initialData={prefilledData} />}
         {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} aiTone={aiTone} onSetAiTone={setAiTone} onClearHistory={() => { setTransactions([]); setIsSettingsModalOpen(false); }} userProfile={userProfile} onUpdateProfile={setUserProfile} />}
-        {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && <IncomingCall transaction={callState.transaction} analysis={callState.analysis} audioUrl={callState.audioUrl} onResolve={handleCallResolve} onAnswer={() => Notifications.dismissAllNotificationsAsync()} />}
+        {callState.isActive && callState.transaction && callState.analysis && callState.audioUrl && <IncomingCall transaction={callState.transaction} analysis={callState.analysis} audioUrl={callState.audioUrl} tone={aiTone} onResolve={handleCallResolve} onAnswer={() => Notifications.dismissAllNotificationsAsync()} />}
       </SafeAreaView>
     </SafeAreaProvider>
   );

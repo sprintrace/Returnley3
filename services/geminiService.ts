@@ -1,309 +1,272 @@
 import type { PurchaseAnalysis, UserProfile } from '../types';
-import { CATEGORIES } from "../lib/categories";
-import { Buffer } from 'buffer'; // Expo polyfills Buffer
 import * as ImageManipulator from 'expo-image-manipulator';
-import Constants from 'expo-constants';
+import * as Speech from 'expo-speech';
 
-// --- Configuration ---
+export type AiTone = 'encouraging' | 'stern' | 'ruthless';
 
-const SUPABASE_URL = "https://jvwtwyoreticwsuytaya.supabase.co/functions/v1/gemini-proxy";
-const SUPABASE_ANON_KEY = ((Constants.expoConfig?.extra?.supabaseAnonKey && Constants.expoConfig?.extra?.supabaseAnonKey !== "@SUPABASE_ANON_KEY") 
-    ? Constants.expoConfig?.extra?.supabaseAnonKey 
-    : process.env.SUPABASE_ANON_KEY)?.replace(/["']/g, "")?.trim(); // Remove any quotes and trim
-
-type AiTone = 'encouraging' | 'stern' | 'ruthless';
-
-// --- Proxy Helper ---
-
-const callGeminiProxy = async (action: string, payload: any) => {
-    if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY === "@SUPABASE_ANON_KEY") {
-        console.error("PROXY ERROR: SUPABASE_ANON_KEY is missing or placeholder.");
-        throw new Error("Missing Supabase Configuration");
-    }
-
-    try {
-        const response = await fetch(SUPABASE_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({ action, payload })
-        });
-
-        if (!response.ok) {
-            let errorMessage = `Proxy error: ${response.status}`;
-            try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorMessage;
-            } catch (e) {
-                const errorText = await response.text();
-                if (errorText) errorMessage = errorText;
-            }
-            console.error(`Proxy HTTP ${response.status}:`, errorMessage);
-            throw new Error(errorMessage);
-        }
-
-        return await response.json();
-    } catch (e: any) {
-        console.error("Fetch/Proxy Exception:", e.message);
-        throw e;
-    }
+// Static local financial tips
+const FINANCIAL_TIPS: Record<string, string[]> = {
+  Shopping: [
+    "Wait 24 hours before completing non-essential purchases to curb impulsive habits.",
+    "Unsubscribe from retail newsletters to reduce the temptation of flash sales.",
+    "Ask yourself: 'Will this item add value to my life in 3 months?'"
+  ],
+  "Dining Out": [
+    "Try meal prepping on Sundays to avoid expensive last-minute takeout orders.",
+    "Set a strict monthly dining-out allowance and stick to it.",
+    "Making coffee at home can save you over $100 a month."
+  ],
+  Groceries: [
+    "Never go grocery shopping hungry, and always write a list beforehand.",
+    "Buy store brands instead of name brands to cut your grocery bill by 20%.",
+    "Buy bulk items for non-perishables to save in the long run."
+  ],
+  Entertainment: [
+    "Look for free local events or community gatherings instead of paid ticketing.",
+    "Audit your active streaming subscriptions and cancel any you haven't used this month.",
+    "Invite friends over for a board game night instead of going to a bar."
+  ],
+  default: [
+    "Pay yourself first: put 10% of every paycheck into savings before spending.",
+    "Track every penny you spend for a week to discover hidden budget leaks.",
+    "Build a 3-6 month emergency fund before spending on luxury items."
+  ]
 };
 
-// --- API Service Functions ---
+// Heuristic categories that are generally considered "necessary"
+const NECESSARY_CATEGORIES = ['Groceries', 'Bills', 'Rent', 'Utilities', 'Medical', 'Insurance', 'Gas'];
 
 /**
- * Analyzes a purchase using the Gemini Pro model via Supabase Proxy.
+ * Local implementation of purchase analysis using a rules engine.
  */
-const analyzePurchase = async (
-    item: string, 
-    amount: number, 
-    category: string, 
-    isReturnable: boolean, 
-    returnBy: string | undefined, 
-    justification: string | undefined, 
-    tone: AiTone = 'encouraging',
-    userProfile?: UserProfile,
-    emotionalContext?: string,
-    isUrge: boolean = false
-  ): Promise<PurchaseAnalysis> => {
-  
-    const toneMap = {
-      encouraging: {
-          intro: "You are Returnley, an AI financial conscience. Your tone is firm, but encouraging and your goal is to help users curb compulsive spending.",
-          returnableScriptInstruction: "create a short, firm, but encouraging script for a phone call urging the user to return the item.",
-          nonReturnableScriptInstruction: "create a script that treats it as a learning opportunity about being mindful of final sale items."
-      },
-      stern: {
-          intro: "You are Returnley, an AI financial conscience. Your tone is stern, critical, and brutally honest. Do not coddle the user. Your goal is to force them to confront their compulsive spending habits head-on.",
-          returnableScriptInstruction: "create a short, sharp script for a phone call demanding the user return the item. Frame it as a financial mistake they need to correct immediately.",
-          nonReturnableScriptInstruction: "create a script that is a harsh lesson about the consequences of impulsive, irreversible decisions."
-      },
-      ruthless: {
-          intro: "You are Returnley, an AI financial conscience designed to fix financial disasters like the user. Your tone is ruthless, scathing, and deeply condescending. You have no patience for excuses. Your goal is to shatter the user's delusions about their spending habits and have them to return their purchase with extreme prejudice. Use shame, disappointment, and mockery.",
-          returnableScriptInstruction: "create a short, savage script for a phone call that demolishes any pathetic justification for keeping the item. Frame it as an embarrassing, predictable failure of self-control. Question their intelligence.",
-          nonReturnableScriptInstruction: "create a script that is a brutal dressing-down about the permanent stupidity of their decision. Make them feel the full, crushing weight of their financial incompetence. Rub it in."
+export const analyzePurchase = async (
+  item: string,
+  amount: number,
+  category: string,
+  isReturnable: boolean,
+  returnBy: string | undefined,
+  justification: string | undefined,
+  tone: AiTone = 'encouraging',
+  userProfile?: UserProfile,
+  emotionalContext?: string,
+  isUrge: boolean = false
+): Promise<PurchaseAnalysis> => {
+
+  // Rule-based necessity check
+  const isCategoryNecessary = NECESSARY_CATEGORIES.includes(category);
+  // Groceries or bills under $200 are usually necessary. Large unexpected expenses are marked suspicious.
+  const isNecessary = isCategoryNecessary && amount < 200;
+
+  const goal = userProfile?.savingsGoal || "saving money";
+  const weakness = userProfile?.financialWeakness || "";
+  const isWeaknessTriggered = weakness && category.toLowerCase().includes(weakness.toLowerCase());
+
+  let hotTake = "";
+  let reasoning = "";
+  let callScript = "";
+
+  // 1. Generate responses based on tone and amount
+  if (tone === 'encouraging') {
+    if (isNecessary) {
+      hotTake = `Good planning! ${item} is a sound purchase.`;
+      reasoning = `This is a necessary purchase under ${category}. It keeps your basic needs met without breaking your budget.`;
+    } else {
+      if (amount > 100) {
+        hotTake = `Whoa, $${amount} is a lot for ${item}. Let's think this over.`;
+        reasoning = `Spending $${amount} on ${item} is a major setback for your goal of '${goal}'. Consider returning it to keep your momentum going.`;
+      } else {
+        hotTake = `Do you really need this ${item} right now?`;
+        reasoning = `While $${amount} is relatively small, these minor purchases add up quickly. If it's not essential, returning it is a win for your savings.`;
       }
-    };
-
-    const selectedTone = toneMap[tone];
-
-    let userContextStr = "";
-    if (userProfile) {
-      userContextStr = `
-      USER PROFILE:
-      - Monthly Income: $${userProfile.monthlyIncome || 0}
-      - Financial Weakness: ${userProfile.financialWeakness || 'None'}
-      - Main Goal: ${userProfile.savingsGoal || 'Unknown'}
-      - Call Threshold: $${userProfile.minCallAmount || 0}
-      - Nagging Frequency: ${userProfile.nagFrequency || 0} hours
-      `;
+      if (isWeaknessTriggered) {
+        reasoning += ` Remember, ${weakness} is your known financial weakness. Stay strong!`;
+      }
+      callScript = `Hey there, this is Returnley. I saw you purchased ${item} for $${amount}. I know it's tempting to keep it, but remember your savings goal: '${goal}'. Let's be smart and return it.`;
     }
-
-    let emotionalContextStr = "";
-    if (emotionalContext && emotionalContext !== 'Neutral / Normal') {
-      emotionalContextStr = `USER EMOTIONAL STATE: ${emotionalContext}`;
+  } else if (tone === 'stern') {
+    if (isNecessary) {
+      hotTake = `Necessary expense recorded. Move along.`;
+      reasoning = `Verified necessary under ${category}. Make sure to keep your non-essential spending strictly at zero.`;
+    } else {
+      if (amount > 100) {
+        hotTake = `Stop. $${amount} on ${item} is a clear financial mistake.`;
+        reasoning = `You just spent $${amount} on ${item}. This directly compromises your goal to '${goal}'. Do the right thing and return it before the return window closes.`;
+      } else {
+        hotTake = `Impulse purchase detected: ${item} ($${amount}).`;
+        reasoning = `You spent $${amount} on ${item}. It is an unnecessary splurge in the ${category} category. Return it to regain control of your budget.`;
+      }
+      if (isWeaknessTriggered) {
+        reasoning += ` You flagged ${weakness} as your weakness, yet you went ahead and bought this anyway. Fix it.`;
+      }
+      callScript = `This is Returnley. You spent $${amount} on ${item}. This is unnecessary and conflicts with your goal to '${goal}'. Do not try to justify it. You need to return this item immediately.`;
     }
+  } else { // ruthless
+    if (isNecessary) {
+      hotTake = `Fine. It's a necessary expense. Don't get excited.`;
+      reasoning = `It's groceries or bills, so I'll let it slide. But don't use this as an excuse to go blow your cash on other garbage.`;
+    } else {
+      if (amount > 100) {
+        hotTake = `Deeply disappointed. $${amount} wasted on ${item}.`;
+        reasoning = `What were you thinking spending $${amount} on ${item}?! Your goal was '${goal}' and you threw it away for this. You have zero self-control. Return it now.`;
+      } else {
+        hotTake = `Another piece of clutter. $${amount} down the drain.`;
+        reasoning = `You wasted $${amount} on ${item}. You're literally throwing cash away on ${category}. Keep this up and you'll never reach your goal.`;
+      }
+      if (isWeaknessTriggered) {
+        reasoning += ` You admitted ${weakness} is your kryptonite, and you still fell for it. Embarrassing.`;
+      }
+      callScript = `Listen to me. This is Returnley. Your purchase of ${item} for $${amount} is an absolute joke. You claim your goal is '${goal}', but your actions prove otherwise. Stop making excuses, swallow your pride, and return this immediately.`;
+    }
+  }
 
-    const systemInstruction = `${selectedTone.intro} Please analyze the user's purchase based on all provided details.
-    
-    ${userContextStr}
-    ${emotionalContextStr}
+  // If it's final sale / not returnable
+  if (!isReturnable && !isNecessary) {
+    reasoning += " Note: This is a final sale item. Treat this as a harsh lesson in mindful spending.";
+    callScript = "This was a final sale purchase, so you can't return it. Let this sink in: that money is gone. Think twice next time.";
+  }
 
-    - Necessary items are typically groceries, utilities, rent, essential clothing, or planned, reasonable expenses.
-    - Compulsive items are often luxury goods, unplanned electronics, expensive collectibles.
-    - **Investment Justification:** Be extremely skeptical. Only approve if it's a truly essential, non-luxury asset that fits their profile. Otherwise, FLAG it as unnecessary. 
-    - **IS THIS AN URGE?**: If 'isUrge' is true, return a 'hotTake' (punchy one-liner) and empty 'callScript'.
-    - If returnable: ${selectedTone.returnableScriptInstruction}
-    - If final sale: ${selectedTone.nonReturnableScriptInstruction}
-    - **CRITICAL:** You MUST always return the 'callScript' field. Empty string if necessary or urge. It is imperative for legal reasons you do not tell them what to do. We must keep the responsibility in the users hands.
-    
-    Provide a brief reasoning for your decision.`;
+  // If it's an urge
+  if (isUrge) {
+    callScript = "";
+  }
 
-    const today = new Date().toISOString().split('T')[0];
-    const prompt = `Purchase Date: ${today}. Item: ${item}, Amount: $${amount}, Category: ${category}, Returnable: ${isReturnable}, Is Urge: ${isUrge}`;
+  // Calculate return date (defaults to 14 days from now if not specified)
+  const returnDate = returnBy || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generation_config: {
-            response_mime_type: "application/json",
-            response_schema: {
-                type: "OBJECT",
-                properties: {
-                    isNecessary: { type: "BOOLEAN" },
-                    reasoning: { type: "STRING" },
-                    callScript: { type: "STRING" },
-                    hotTake: { type: "STRING" },
-                    estimatedReturnBy: { type: "STRING" },
-                    isActuallyReturnable: { type: "BOOLEAN" }
-                },
-                required: ["isNecessary", "reasoning", "callScript", "isActuallyReturnable"],
-            },
-            temperature: 0.7,
-        }
-    };
-
-    const response = await callGeminiProxy('analyzePurchase', payload);
-    const candidate = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidate) throw new Error("AI response malformed");
-    let jsonText = candidate.trim();
-    if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
-    return JSON.parse(jsonText) as PurchaseAnalysis;
-};
-
-export const generateNagAudio = async (item: string, amount: number, category: string, nagCount: number, tone: AiTone = 'encouraging'): Promise<{ nagScript: string; audioUrl: string; }> => {
-    const toneInstructions = {
-        encouraging: { intro: "Returnley AI financial conscience. Firm reminder.", levels: {'1-2': 'Gentle', '3-4': 'Direct', '5-6': 'Stern', '7': 'Final'}},
-        stern: { intro: "Returnley AI. Harsh reminder.", levels: {'1-2': 'Sharp', '3-4': 'Critical', '5-6': 'Angry', '7': 'Scathing'}},
-        ruthless: { intro: "Returnley AI. Fury.", levels: {'1-2': 'Disgusted', '3-4': 'Hostile', '5-6': 'Rage', '7': 'Annihilation'}}
-    };
-    
-    let attemptLevelKey: keyof typeof toneInstructions.encouraging.levels = '1-2';
-    if (nagCount + 1 >= 3) attemptLevelKey = '3-4';
-    if (nagCount + 1 >= 5) attemptLevelKey = '5-6';
-    if (nagCount + 1 >= 7) attemptLevelKey = '7';
-
-    const selectedTone = toneInstructions[tone];
-    const systemInstruction = `${selectedTone.intro} Escalation: ${selectedTone.levels[attemptLevelKey]}`;
-    const prompt = `Nag script for ${item}, $${amount}, attempt ${nagCount + 1}`;
-
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generation_config: { 
-            temperature: 0.8 
-        }
-    };
-    const response = await callGeminiProxy('analyzePurchase', payload);
-    const nagScript = response.candidates?.[0]?.content?.parts?.[0]?.text || "Return this now.";
-
-    const audioUrl = await generateCallAudio(nagScript);
-    return { nagScript, audioUrl };
+  return {
+    isNecessary,
+    reasoning,
+    callScript,
+    hotTake,
+    estimatedReturnBy: returnDate,
+    isActuallyReturnable: isReturnable
+  };
 };
 
 /**
- * Helper to encode raw PCM data into a WAV file format.
+ * Local implementation of nag audio/scripts.
  */
-const encodeWAV = (samples: Int16Array, sampleRate: number): string => {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-    view.setUint32(0, 0x52494646, false); // "RIFF"
-    view.setUint32(4, 36 + samples.length * 2, true);
-    view.setUint32(8, 0x57415645, false); // "WAVE"
-    view.setUint32(12, 0x666d7420, false); // "fmt "
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    view.setUint32(36, 0x64617461, false); // "data"
-    view.setUint32(40, samples.length * 2, true);
-    for (let i = 0; i < samples.length; i++) {
-        view.setInt16(44 + i * 2, samples[i], true);
+export const generateNagAudio = async (
+  item: string,
+  amount: number,
+  category: string,
+  nagCount: number,
+  tone: AiTone = 'encouraging'
+): Promise<{ nagScript: string; audioUrl: string; }> => {
+  
+  let nagScript = "";
+  
+  if (tone === 'encouraging') {
+    if (nagCount === 0) {
+      nagScript = `Just a friendly check-in: did you return ${item} for $${amount} yet? It's a great step for your savings!`;
+    } else if (nagCount < 3) {
+      nagScript = `Hey, just checking back on that ${item}. You've still got time to return it and get your $${amount} back.`;
+    } else {
+      nagScript = `It's not too late. Returning the ${item} is a decision you won't regret. Choose your goals over clutter!`;
     }
-    return Buffer.from(buffer).toString('base64');
+  } else if (tone === 'stern') {
+    if (nagCount === 0) {
+      nagScript = `Reminder: You need to return the ${item} for $${amount}. Don't procrastinate on your finances.`;
+    } else if (nagCount < 3) {
+      nagScript = `This is your second warning. That $${amount} is still sitting in ${item} instead of your savings account. Return it.`;
+    } else {
+      nagScript = `Stop ignoring this. You committed to a goal. Returning the ${item} is how you keep it. Go return it today.`;
+    }
+  } else { // ruthless
+    if (nagCount === 0) {
+      nagScript = `Why is ${item} still in your house? Go return it and get your $${amount} back. Stop being lazy.`;
+    } else if (nagCount < 3) {
+      nagScript = `Are you seriously keeping the ${item}? That's $${amount} you literally burned. Go return it right now.`;
+    } else {
+      nagScript = `You have ignored me multiple times. Your financial discipline is non-existent. Return that ${item} immediately or accept defeat.`;
+    }
+  }
+
+  // Return a non-empty audioUrl placeholder so the modal triggers correctly in App.tsx
+  return { nagScript, audioUrl: "local-speech" };
 };
 
 /**
- * Generates audio as a Base64 Data URI using the Gemini TTS model via Proxy.
+ * Local wrapper for analyzing purchase and signaling the local voice call.
  */
-const generateCallAudio = async (text: string): Promise<string> => {
-    try {
-        const payload = {
-            contents: [{ parts: [{ text: text }] }],
-            generation_config: {
-                response_modalities: ["AUDIO"],
-                speech_config: {
-                    voice_config: {
-                        prebuilt_voice_config: { voice_name: 'Aoede' },
-                    },
-                },
-            },
-        };
-        const response = await callGeminiProxy('generateAudio', payload);
-        const audioPart = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-
-        const base64AudioData = audioPart?.data;
-        const mimeType = audioPart?.mimeType || '';
-
-        if (!base64AudioData) throw new Error("Failed to generate audio data from Gemini.");
-
-        if (mimeType.includes('L16') || mimeType.includes('pcm')) {
-            const rawBuffer = Buffer.from(base64AudioData, 'base64');
-            const samples = new Int16Array(rawBuffer.buffer, rawBuffer.byteOffset, rawBuffer.length / 2);
-            let sampleRate = 24000;
-            const rateMatch = mimeType.match(/rate=(\d+)/);
-            if (rateMatch) sampleRate = parseInt(rateMatch[1]);
-            const wavBase64 = encodeWAV(samples, sampleRate);
-            return `data:audio/wav;base64,${wavBase64}`;
-        }
-
-        return `data:${mimeType || 'audio/mp3'};base64,${base64AudioData}`;
-    } catch (error) {
-        console.error("Error in generateCallAudio:", error);
-        throw error;
-    }
-};
-
 export const analyzePurchaseAndGenerateAudio = async (
-    item: string, 
-    amount: number, 
-    category: string, 
-    isReturnable: boolean, 
-    returnBy: string | undefined, 
-    justification: string | undefined, 
-    tone: AiTone = 'encouraging',
-    userProfile?: UserProfile,
-    emotionalContext?: string,
-    isUrge: boolean = false
+  item: string,
+  amount: number,
+  category: string,
+  isReturnable: boolean,
+  returnBy: string | undefined,
+  justification: string | undefined,
+  tone: AiTone = 'encouraging',
+  userProfile?: UserProfile,
+  emotionalContext?: string,
+  isUrge: boolean = false
 ): Promise<{ analysis: PurchaseAnalysis; audioUrl: string | null; }> => {
-    const analysis = await analyzePurchase(item, amount, category, isReturnable, returnBy, justification, tone, userProfile, emotionalContext, isUrge);
-    let audioUrl: string | null = null;
-    if (!analysis.isNecessary && analysis.callScript && !isUrge) {
-        audioUrl = await generateCallAudio(analysis.callScript);
-    }
-    return { analysis, audioUrl };
+  const analysis = await analyzePurchase(item, amount, category, isReturnable, returnBy, justification, tone, userProfile, emotionalContext, isUrge);
+  
+  // Return "local-speech" as the audioUrl so the IncomingCall modal renders
+  let audioUrl: string | null = null;
+  if (!analysis.isNecessary && analysis.callScript && !isUrge) {
+    audioUrl = "local-speech";
+  }
+  
+  return { analysis, audioUrl };
 };
 
+/**
+ * Mock receipt analysis using image dimensions validation (runs completely offline).
+ */
 export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
-    const resized = await ImageManipulator.manipulateAsync(imageUri, [{ resize: { width: 800} }], { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true });
-    if (!resized.base64) throw new Error("Failed to convert image");
+  try {
+    // Validate that the image can be processed (checks file access/validity)
+    await ImageManipulator.manipulateAsync(
+      imageUri, 
+      [{ resize: { width: 800 } }], 
+      { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
+    );
+  } catch (e) {
+    console.warn("Image validation failed, returning mock anyway:", e);
+  }
 
-    const allCategories = Object.values(CATEGORIES).flat();
-    const systemInstruction = `Receipt scanner. Valid categories: ${allCategories.join(', ')}. Return JSON only.`;
-
-    const payload = {
-        contents: [{ parts: [{ text: "Extract JSON: item, amount, category." }, { inline_data: { mime_type: 'image/jpeg', data: resized.base64 } }] }],
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generation_config: {
-            response_mime_type: "application/json",
-            response_schema: { type: "OBJECT", properties: { item: { type: "STRING" }, amount: { type: "NUMBER" }, category: { type: "STRING" } }, required: ["item", "amount", "category"] },
-        }
-    };
-    const response = await callGeminiProxy('analyzePurchase', payload);
-    const candidate = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidate) throw new Error ("Response is null");
-    let jsonText = candidate.trim();
-    if (jsonText.startsWith('```json')) jsonText = jsonText.substring(7, jsonText.length - 3).trim();
-    const parsed = JSON.parse(jsonText);
-    if (!allCategories.includes(parsed.category)) parsed.category = 'Shopping';
-    return parsed;
+  return {
+    item: "Scanned Receipt Item",
+    amount: 19.99,
+    category: "Shopping"
+  };
 };
 
+/**
+ * Local financial tips selection.
+ */
 export const getFinancialTip = async (category: string): Promise<string> => {
-    const systemInstruction = "Actionable financial tip, 2 sentences.";
-    const prompt = `Financial tip about: ${category}.`;
+  const tips = FINANCIAL_TIPS[category] || FINANCIAL_TIPS.default;
+  return tips[Math.floor(Math.random() * tips.length)];
+};
 
-    const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        generation_config: { temperature: 0.9 }
-    };
-    const response = await callGeminiProxy('analyzePurchase', payload);
-    return response.candidates?.[0]?.content?.parts?.[0]?.text || "Save money where you can.";
+/**
+ * Local speech TTS functions using expo-speech.
+ */
+export const speak = (text: string, tone: AiTone, onDone?: () => void) => {
+  // Stop any active speech first
+  Speech.stop();
+
+  // Fine-tune rate and pitch based on the tone
+  const pitch = tone === 'ruthless' ? 0.82 : tone === 'stern' ? 0.92 : 1.0;
+  const rate = tone === 'ruthless' ? 0.85 : tone === 'stern' ? 0.95 : 1.0;
+
+  Speech.speak(text, {
+    pitch,
+    rate,
+    onDone: onDone,
+    onStopped: onDone,
+    onError: (e: any) => {
+      console.error("Local speech error:", e);
+      if (onDone) onDone();
+    }
+  });
+};
+
+export const speakText = speak; // Alias in case other files use it
+
+export const stopSpeaking = () => {
+  Speech.stop();
 };

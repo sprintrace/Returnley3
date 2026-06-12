@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { Transaction, PurchaseAnalysis } from '../types';
-import { useAudioPlayer } from 'expo-audio'; // Use useAudioPlayer from expo-audio
 import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for icons
+import { speak, stopSpeaking, AiTone } from '../services/geminiService';
 
 /**
  * Props for the IncomingCall component.
@@ -12,8 +12,10 @@ interface IncomingCallProps {
   transaction: Transaction;
   /** The AI analysis of the transaction. */
   analysis: PurchaseAnalysis;
-  /** A URI for the audio to be played (from expo-file-system). */
+  /** A URI for the audio to be played (ignored, using local speech). */
   audioUrl: string;
+  /** The AI tone to speak in. */
+  tone: AiTone;
   /** Callback function to resolve the call with the user's decision. */
   onResolve: (decision: 'return' | 'keep') => void;
   /** Callback function when the user answers. */
@@ -24,27 +26,19 @@ interface IncomingCallProps {
  * A full-screen modal that simulates an incoming phone call to the user.
  * It manages its own internal state for the call flow (ringing, answered).
  */
-export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysis, audioUrl, onResolve, onAnswer }) => {
+export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysis, audioUrl, tone, onResolve, onAnswer }) => {
   // Internal state machine for the call UI: 'ringing' -> 'answered' -> 'ended'
   const [callState, setCallState] = useState<'ringing' | 'answered' | 'ended'>('ringing');
   const [hasPlayed, setHasPlayed] = useState(false);
-
-  // Use the useAudioPlayer hook
-  const player = useAudioPlayer(audioUrl);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    console.log("Audio Player Status:", {
-      playing: player.playing,
-      status: player.status,
-      audioUrl: audioUrl.substring(0, 50) + "..."
-    });
-  }, [player.playing, player.status, audioUrl]);
+    // Stop any ongoing speech when the component unmounts
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
-  useEffect(() => {
-      if (player.status === 'finished') {
-          setHasPlayed(true);
-      }
-  }, [player.status]);
   const pingAnim = useRef(new Animated.Value(0)).current;
 
   // Animation for the ping effect
@@ -63,11 +57,11 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   const handleAnswer = async () => {
     setCallState('answered');
     if (onAnswer) onAnswer();
-    try {
-      await player.play();
-    } catch (error) {
-      console.error("Error playing audio:", error);
-    }
+    setIsPlaying(true);
+    speak(analysis.callScript, tone, () => {
+      setIsPlaying(false);
+      setHasPlayed(true);
+    });
     startPingAnimation(); // Start animation when answered
   };
 
@@ -77,21 +71,14 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
   };
   
   const handleReplay = async () => {
-    try {
-      await player.seekTo(0);
-      await player.play();
-    } catch (error) {
-      console.error("Error replaying audio:", error);
-    }
+    setIsPlaying(true);
+    speak(analysis.callScript, tone, () => {
+      setIsPlaying(false);
+    });
   };
 
   const handleDecision = async (decision: 'return' | 'keep') => {
-    try {
-      await player.pause();
-      // useAudioPlayer handles release automatically when component unmounts
-    } catch (error) {
-      console.error("Error stopping audio:", error);
-    }
+    stopSpeaking();
     setCallState('ended'); // Transition to ended state to ensure component unmounts cleanly.
     onResolve(decision);
   };
@@ -158,7 +145,7 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
               <View style={styles.speakingIndicator}>
                   <Text style={styles.speakingText}>Returnley is speaking</Text>
                   {/* Visual indicator for when audio is playing */}
-                  {player.playing ? (
+                  {isPlaying ? (
                       <Animated.View style={[styles.speakingPing, pingStyle]} />
                   ) : null}
               </View>
@@ -168,7 +155,7 @@ export const IncomingCall: React.FC<IncomingCallProps> = ({ transaction, analysi
                   <Text style={styles.reasoningText}>{analysis.reasoning}</Text>
               </View>
               {/* Show replay button only after audio has finished playing once */}
-              {hasPlayed && !player.playing && (
+              {hasPlayed && !isPlaying && (
                    <TouchableOpacity onPress={handleReplay} style={styles.replayButton}>
                       <Text style={styles.replayButtonText}>Replay Message</Text>
                   </TouchableOpacity>

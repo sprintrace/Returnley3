@@ -83,7 +83,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({ onClos
           </View>
         ) : !permission?.granted ? (
           <View style={styles.centerContent}>
-            <Ionicons name="camera-off-outline" size={64} color="#EF4444" />
+            <Ionicons name={"camera-off-outline" as any} size={64} color="#EF4444" />
             <Text style={styles.errorText}>Camera permission is required to scan receipts.</Text>
             <TouchableOpacity onPress={onClose} style={styles.errorCloseButton}>
               <Text style={styles.buttonText}>Go Back</Text>
