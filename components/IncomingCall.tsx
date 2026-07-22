@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { Transaction, PurchaseAnalysis } from '../types';
 import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for icons
-import { speak, stopSpeaking, AiTone } from '../services/geminiService';
+import { speak, stopSpeaking, AiTone } from '../services/ruleEngineService';
 
 /**
  * Props for the IncomingCall component.

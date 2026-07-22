@@ -52,7 +52,7 @@ export interface Transaction {
 }
 
 /**
- * Represents the structured analysis of a purchase returned by the Gemini API.
+ * Represents the structured analysis of a purchase returned by the rule engine.
  */
 export interface PurchaseAnalysis {
   /** The AI's decision on whether the purchase was necessary. */

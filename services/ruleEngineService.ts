@@ -1,6 +1,8 @@
 import type { PurchaseAnalysis, UserProfile } from '../types';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Speech from 'expo-speech';
+import { CATEGORIES } from '../lib/categories';
+import { recognizeText } from 'expo-mlkit-ocr';
 
 export type AiTone = 'encouraging' | 'stern' | 'ruthless';
 
@@ -213,25 +215,140 @@ export const analyzePurchaseAndGenerateAudio = async (
 };
 
 /**
- * Mock receipt analysis using image dimensions validation (runs completely offline).
+ * Analyze receipt using on-device ML Kit OCR and a rule-based regex parser.
+ * This does NOT make any AI/LLM API calls.
  */
 export const analyzeReceipt = async (imageUri: string): Promise<{ item: string; amount: number; category: string; }> => {
   try {
-    // Validate that the image can be processed (checks file access/validity)
-    await ImageManipulator.manipulateAsync(
-      imageUri, 
-      [{ resize: { width: 800 } }], 
-      { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
+    console.log("Analyzing receipt offline with on-device ML Kit OCR...");
+    // Resize and compress the image first to optimize OCR processing speed
+    const manipulated = await ImageManipulator.manipulateAsync(
+      imageUri,
+      [{ resize: { width: 1000 } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
     );
-  } catch (e) {
-    console.warn("Image validation failed, returning mock anyway:", e);
-  }
 
-  return {
-    item: "Scanned Receipt Item",
-    amount: 19.99,
-    category: "Shopping"
-  };
+    // Call ML Kit OCR scan
+    const ocrResult = await recognizeText(manipulated.uri);
+    if (!ocrResult || !ocrResult.text) {
+      console.warn("OCR scanned no text, returning defaults.");
+      return {
+        item: "Scanned Receipt Item",
+        amount: 0,
+        category: "Shopping"
+      };
+    }
+
+    // Extract text lines directly from the combined text string
+    const fullText = ocrResult.text;
+    const lines = fullText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+    console.log("OCR raw text snippet:", fullText.substring(0, 300));
+
+    // 1. Amount Extraction (Regex & rule-based)
+    let amount = 0;
+    const priceRegex = /(?:\$)?\s*(\d+\.\d{2})\b/g;
+    let match;
+    const prices: { value: number; line: string }[] = [];
+
+    for (const line of lines) {
+      priceRegex.lastIndex = 0;
+      while ((match = priceRegex.exec(line)) !== null) {
+        const val = parseFloat(match[1]);
+        if (!isNaN(val)) {
+          prices.push({ value: val, line });
+        }
+      }
+    }
+
+    const totalKeywords = ['total', 'amount due', 'due', 'charge', 'paid', 'sum', 'grand total', 'net'];
+    const excludeKeywords = ['subtotal', 'sub total', 'tax', 'hst', 'gst', 'vat', 'change', 'cash', 'tender', 'visa', 'mastercard', 'card', 'amex', 'savings', 'discount'];
+
+    let bestTotalCandidate = -1;
+    for (const priceObj of prices) {
+      const lowerLine = priceObj.line.toLowerCase();
+      const hasTotalWord = totalKeywords.some(kw => lowerLine.includes(kw));
+      const hasExcludeWord = excludeKeywords.some(kw => lowerLine.includes(kw));
+      
+      if (hasTotalWord && !hasExcludeWord) {
+        if (priceObj.value > bestTotalCandidate) {
+          bestTotalCandidate = priceObj.value;
+        }
+      }
+    }
+
+    if (bestTotalCandidate > 0) {
+      amount = bestTotalCandidate;
+    } else {
+      // Fallback: pick the largest price value that isn't too high (e.g. skip invoice numbers)
+      const reasonablePrices = prices.filter(p => p.value < 10000);
+      if (reasonablePrices.length > 0) {
+        amount = Math.max(...reasonablePrices.map(p => p.value));
+      }
+    }
+
+    // 2. Merchant / Item Extraction
+    let item = "Scanned Receipt Item";
+    const dateRegex = /\d{1,4}[-/.]\d{1,4}[-/.]\d{1,4}/;
+    const phoneRegex = /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
+    const urlRegex = /(www\.|http:|https:|\.com)/i;
+    const addressRegex = /\b(street|st|ave|road|rd|blvd|lane|ln|drive|dr|way|hwy|highway|suite|ste)\b/i;
+
+    const merchantCandidates = lines.slice(0, 5).filter((line: string) => {
+      const clean = line.trim();
+      if (clean.length < 3) return false;
+      if (dateRegex.test(clean)) return false;
+      if (phoneRegex.test(clean)) return false;
+      if (urlRegex.test(clean)) return false;
+      if (addressRegex.test(clean)) return false;
+      if (/^[0-9\s#\-()*+$:.]+$/.test(clean)) return false;
+      return true;
+    });
+
+    if (merchantCandidates.length > 0) {
+      item = merchantCandidates[0];
+    }
+
+    // 3. Category Mapping (Rule-based keywords match)
+    const CATEGORY_KEYWORDS: Record<string, string[]> = {
+      'Groceries': ['grocery', 'groceries', 'supermarket', 'whole foods', 'kroger', 'safeway', 'trader joe', 'food', 'market', 'produce', 'bakery', 'aldi', 'publix'],
+      'Fast Food': ['mcdonald', 'burger', 'starbucks', 'coffee', 'cafe', 'pizza', 'taco', 'subway', 'dunkin', 'wendy', 'kfc', 'coke', 'drink', 'combo', 'espresso', 'donut'],
+      'Dining & Entertainment': ['restaurant', 'bar', 'grill', 'pub', 'bistro', 'tavern', 'cinema', 'theater', 'show', 'concert', 'ticket', 'museum', 'bowling', 'karaoke'],
+      'Transportation': ['chevron', 'shell', 'exxon', 'mobil', 'gas', 'fuel', 'uber', 'lyft', 'taxi', 'transit', 'train', 'parking', 'station', 'metro'],
+      'Utilities': ['electric', 'water', 'power', 'internet', 'cable', 'wifi', 'telecom', 'phone', 'utility', 'utilities'],
+      'Shopping': ['target', 'walmart', 'amazon', 'store', 'mall', 'clothing', 'shoes', 'apparel', 'boutique', 'department', 'best buy', 'home depot', 'lowes', 'nordstrom', 'macy', 'ikea', 'retail'],
+      'Health & Wellness': ['pharmacy', 'cvs', 'walgreens', 'health', 'medical', 'doctor', 'dentist', 'gym', 'fitness', 'pill', 'prescription', 'clinic', 'care'],
+      'Subscriptions': ['netflix', 'spotify', 'hulu', 'prime', 'apple', 'google', 'membership', 'subscription', 'monthly', 'renew', 'patreon'],
+      'Travel': ['hotel', 'motel', 'airbnb', 'flight', 'airline', 'resort', 'booking', 'stay', 'rentacar', 'lodging', 'cruise'],
+      'Personal Care': ['salon', 'barber', 'hair', 'spa', 'nails', 'makeup', 'cosmetics', 'grooming', 'beauty'],
+    };
+
+    let category = 'Shopping';
+    let maxScore = 0;
+    const lowerText = fullText.toLowerCase();
+
+    for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      let score = 0;
+      for (const word of keywords) {
+        if (lowerText.includes(word)) {
+          score++;
+        }
+      }
+      if (score > maxScore) {
+        maxScore = score;
+        category = catName;
+      }
+    }
+
+    return { item, amount, category };
+  } catch (e: any) {
+    console.error("Offline receipt analysis failed:", e.message || e);
+    return {
+      item: "Fallback: Scanned Item",
+      amount: 19.99,
+      category: "Shopping"
+    };
+  }
 };
 
 /**

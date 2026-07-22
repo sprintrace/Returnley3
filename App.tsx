@@ -11,7 +11,7 @@ import { TransactionList } from './components/TransactionList';
 import { AddPurchaseModal } from './components/AddPurchaseModal';
 import { IncomingCall } from './components/IncomingCall';
 import { Transaction, TransactionStatus, PurchaseAnalysis, UserProfile } from './types';
-import { analyzePurchaseAndGenerateAudio, generateNagAudio, analyzeReceipt } from './services/geminiService';
+import { analyzePurchaseAndGenerateAudio, generateNagAudio, analyzeReceipt } from './services/ruleEngineService';
 import { Leaderboard } from './components/Leaderboard';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { FinancialLiteracy } from './components/FinancialLiteracy';
@@ -179,7 +179,7 @@ export default function App() {
     try {
       const { analysis, audioUrl } = await analyzePurchaseAndGenerateAudio(item, amount, category, isReturnable, returnBy, justification, aiTone, userProfile || undefined, emotionalContext, !!isUrge);
 
-      console.log('Gemini Analysis:', JSON.stringify(analysis, null, 2));
+      console.log('Rule Analysis:', JSON.stringify(analysis, null, 2));
       console.log('Audio URL Generated:', !!audioUrl);
 
       const isFlagged = !analysis.isNecessary;

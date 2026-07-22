@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { getFinancialTip } from '../services/geminiService';
+import { getFinancialTip } from '../services/ruleEngineService';
 import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for the lightbulb icon
 
 const TIP_CATEGORIES = ['Saving', 'Budgeting', 'Investing', 'Debt Management'];
@@ -17,7 +17,7 @@ export const FinancialLiteracy: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     /**
-     * Fetches a new financial tip from the Gemini service based on the selected category.
+     * Fetches a new financial tip from the rules engine based on the selected category.
      * Wrapped in `useCallback` to ensure the function reference is stable unless `selectedCategory` changes.
      */
     const fetchTip = useCallback(async () => {
