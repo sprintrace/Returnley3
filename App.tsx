@@ -11,7 +11,7 @@ import { TransactionList } from './components/TransactionList';
 import { AddPurchaseModal } from './components/AddPurchaseModal';
 import { IncomingCall } from './components/IncomingCall';
 import { Transaction, TransactionStatus, PurchaseAnalysis, UserProfile } from './types';
-import { analyzePurchaseAndGenerateAudio, generateNagAudio, analyzeReceipt } from './services/ruleEngineService';
+import { analyzePurchaseAndGenerateAudio, generateNagAudio, analyzeReceipt, analyzeUrgeCooldown } from './services/ruleEngineService';
 import { Leaderboard } from './components/Leaderboard';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { FinancialLiteracy } from './components/FinancialLiteracy';
@@ -124,6 +124,31 @@ export default function App() {
       } finally { setIsLoading(false); }
   }, [aiTone]);
 
+  const triggerUrgeCall = useCallback(async (transaction: Transaction) => {
+    setIsLoading(true);
+    setLoadingMessage('Analyzing urge outcome...');
+    try {
+      const verdict = await analyzeUrgeCooldown(transaction.item, transaction.amount, transaction.category, userProfile || undefined, aiTone);
+      
+      setCallState({
+        isActive: true,
+        transaction,
+        analysis: {
+          isNecessary: verdict.isRecommendedToBuy,
+          reasoning: verdict.verdictText,
+          callScript: verdict.callScript,
+          hotTake: verdict.hotTake
+        },
+        audioUrl: 'local-speech'
+      });
+      await Notifications.dismissAllNotificationsAsync();
+    } catch (err) {
+      console.error('Urge call trigger failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [aiTone, userProfile]);
+
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
@@ -132,18 +157,38 @@ export default function App() {
 
       if (transactionId) {
         const tx = transactions.find(t => t.id === transactionId);
-        if (tx && type && ['nag', 'initial_nag_backup', 'urge_purchase_nag_backup'].includes(type)) {
-          handleNag(tx);
+        if (tx) {
+          if (type === 'urge_cooldown_expired' || (type && tx.status === TransactionStatus.Urge && ['nag', 'initial_nag_backup', 'urge_purchase_nag_backup'].includes(type))) {
+            triggerUrgeCall(tx);
+          } else if (type && ['nag', 'initial_nag_backup', 'urge_purchase_nag_backup'].includes(type)) {
+            handleNag(tx);
+          }
         }
       }
     });
     return () => sub.remove();
-  }, [transactions, handleNag]);
+  }, [transactions, handleNag, triggerUrgeCall]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (isLoading || callState.isActive) return;
       const now = Date.now();
+
+      // Check for urge 24h cooldown expiration
+      const urgeTx = transactions.find(t => {
+        if (t.status !== TransactionStatus.Urge || t.cooldownHandled) return false;
+        const createdAt = t.createdAt || Number(t.id) || (t.date ? new Date(t.date).getTime() : 0);
+        const expiresAt = t.cooldownExpiresAt || (createdAt + 24 * 60 * 60 * 1000);
+        return expiresAt > 0 && now >= expiresAt;
+      });
+
+      if (urgeTx) {
+        setTransactions(prev => prev.map(t => t.id === urgeTx.id ? { ...t, cooldownHandled: true } : t));
+        triggerUrgeCall(urgeTx);
+        return;
+      }
+
+      // Check for standard nag timestamp
       const tx = transactions.find(t => t.nextNagTimestamp && now >= t.nextNagTimestamp);
       if (tx) {
         setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, nextNagTimestamp: undefined } : t));
@@ -151,7 +196,7 @@ export default function App() {
       }
     }, 5000);
     return () => clearInterval(intervalId);
-  }, [transactions, isLoading, callState.isActive, handleNag]);
+  }, [transactions, isLoading, callState.isActive, handleNag, triggerUrgeCall]);
 
   const scheduleNotification = useCallback(async (title: string, body: string, triggerTime: number, data: any = {}) => {
     try {
@@ -195,8 +240,11 @@ export default function App() {
         ? TransactionStatus.Urge 
         : (isFlagged && !isBelowThreshold ? TransactionStatus.Pending : TransactionStatus.Approved);
 
+      const createdAt = Date.now();
+      const cooldownExpiresAt = createdAt + 24 * 60 * 60 * 1000;
+
       const newTx: Transaction = { 
-        id: Date.now().toString(), 
+        id: createdAt.toString(), 
         item, 
         amount, 
         category, 
@@ -208,7 +256,10 @@ export default function App() {
         nagCount: 0, 
         nextNagTimestamp, 
         emotionalContext, 
-        hotTake: analysis.hotTake 
+        hotTake: analysis.hotTake,
+        createdAt,
+        cooldownExpiresAt,
+        cooldownHandled: false,
       };
 
       setTransactions(prev => [newTx, ...prev]);
@@ -218,6 +269,14 @@ export default function App() {
       if (shouldCall) {
         setCallState({ isActive: true, transaction: newTx, analysis, audioUrl });
         if (nextNagTimestamp) scheduleNotification("Returnley Calling...", `I'm waiting for your answer about that ${item}.`, nextNagTimestamp, { transactionId: newTx.id, type: 'initial_nag_backup' });
+      } else if (isUrge) {
+        const urgeVerdict = await analyzeUrgeCooldown(item, amount, category, userProfile || undefined, aiTone);
+        scheduleNotification(
+          `24h Cooldown Expired: ${item}`,
+          urgeVerdict.notificationBody,
+          cooldownExpiresAt,
+          { transactionId: newTx.id, type: 'urge_cooldown_expired' }
+        );
       }
     } catch (err) {
       setError('Analysis failed. Flagged for review.');

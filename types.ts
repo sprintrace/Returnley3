@@ -49,6 +49,12 @@ export interface Transaction {
   emotionalContext?: string;
   /** A short AI reaction for 'Urge' items. */
   hotTake?: string;
+  /** Timestamp in ms when the transaction was logged. */
+  createdAt?: number;
+  /** Timestamp in ms when the 24h urge cooldown expires. */
+  cooldownExpiresAt?: number;
+  /** Whether the urge cooldown expiration has been handled. */
+  cooldownHandled?: boolean;
 }
 
 /**

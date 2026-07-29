@@ -146,6 +146,76 @@ export const analyzePurchase = async (
 };
 
 /**
+ * Analyzes an Urge purchase when its 24-hour cooldown ends.
+ * Generates a rule-engine verdict, reasoning, call script, and notification body.
+ */
+export const analyzeUrgeCooldown = async (
+  item: string,
+  amount: number,
+  category: string,
+  userProfile?: UserProfile,
+  tone: AiTone = 'encouraging'
+): Promise<{
+  isRecommendedToBuy: boolean;
+  verdictText: string;
+  notificationBody: string;
+  callScript: string;
+  hotTake: string;
+}> => {
+  const isCategoryNecessary = NECESSARY_CATEGORIES.includes(category);
+  const goal = userProfile?.savingsGoal || "saving money";
+  const weakness = userProfile?.financialWeakness || "";
+  const minCall = userProfile?.minCallAmount ?? 20;
+  const isWeaknessTriggered = weakness && category.toLowerCase().includes(weakness.toLowerCase());
+
+  // Rule: If non-necessary and price > minCall amount, recommendation is to SKIP.
+  const isRecommendedToBuy = isCategoryNecessary || (amount < minCall && !isWeaknessTriggered);
+
+  let notificationBody = "";
+  let callScript = "";
+  let verdictText = "";
+  let hotTake = "";
+
+  if (isRecommendedToBuy) {
+    verdictText = `Returnley Verdict: BUY APPROVED. ${item} ($${amount}) fits into your budget as a reasonable purchase.`;
+    notificationBody = `Verdict: BUY APPROVED! $${amount.toFixed(2)} for ${item} is reasonable. Tap to confirm purchase or call Returnley.`;
+    hotTake = `Cooldown over! You can buy ${item} without guilt.`;
+    
+    if (tone === 'encouraging') {
+      callScript = `Your 24-hour cooldown for ${item} is complete. Good news: based on your budget, this purchase is safe to make! If you still want it, go right ahead!`;
+    } else if (tone === 'stern') {
+      callScript = `The 24-hour cooldown for ${item} has elapsed. It passes our financial threshold. If you need it, proceed carefully.`;
+    } else {
+      callScript = `Cooldown ended for ${item}. Surprisingly, it's not a complete waste of cash. Buy it if you must.`;
+    }
+  } else {
+    verdictText = `Returnley Verdict: SKIP IT! $${amount.toFixed(2)} for ${item} is an impulse purchase that hinders your '${goal}' goal.`;
+    notificationBody = `Verdict: SKIP IT! $${amount.toFixed(2)} for ${item} hinders '${goal}'. Tap to answer Returnley's call.`;
+    hotTake = `24 hours passed! Resist the urge and save your $${amount.toFixed(2)}!`;
+
+    if (tone === 'encouraging') {
+      callScript = `Hey! Your 24-hour cooldown for ${item} ($${amount.toFixed(2)}) is up. You've given yourself time to think. My recommendation is to skip this purchase and add $${amount.toFixed(2)} towards your goal of '${goal}'!`;
+    } else if (tone === 'stern') {
+      callScript = `Your 24-hour cooldown for ${item} is up. Spending $${amount.toFixed(2)} on this non-essential item directly conflicts with your goal to '${goal}'. Resist the urge and save your money.`;
+    } else { // ruthless
+      callScript = `Listen up! The 24 hours are over for ${item}. Spending $${amount.toFixed(2)} on this is a classic impulse mistake. Don't fall for it. Save the cash toward '${goal}' instead of buying garbage.`;
+    }
+
+    if (isWeaknessTriggered) {
+      callScript += ` Remember, ${weakness} is your financial weakness. Stay disciplined!`;
+    }
+  }
+
+  return {
+    isRecommendedToBuy,
+    verdictText,
+    notificationBody,
+    callScript,
+    hotTake,
+  };
+};
+
+/**
  * Local implementation of nag audio/scripts.
  */
 export const generateNagAudio = async (

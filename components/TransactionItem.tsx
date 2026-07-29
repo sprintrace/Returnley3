@@ -61,6 +61,30 @@ const statusStyles: { [key in TransactionStatus]: { bg: object; text: object; bo
  * A component that displays a single transaction with status-specific styling and actions.
  */
 export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, onQuickAction, onStatusToggle }) => {
+  // Real-time timestamp state for updating cooldown badge text live
+  const [nowMs, setNowMs] = React.useState(Date.now());
+
+  React.useEffect(() => {
+    if (transaction.status !== TransactionStatus.Urge) return;
+    const interval = setInterval(() => {
+      setNowMs(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [transaction.status]);
+
+  const getRemainingCooldownText = () => {
+    const createdAt = transaction.createdAt || Number(transaction.id) || (transaction.date ? new Date(transaction.date).getTime() : Date.now());
+    const expiresAt = transaction.cooldownExpiresAt || (createdAt + 24 * 60 * 60 * 1000);
+    const diffMs = expiresAt - nowMs;
+
+    if (diffMs <= 0) {
+      return '0h Cooldown';
+    }
+
+    const hoursLeft = Math.ceil(diffMs / (1000 * 60 * 60));
+    return `${hoursLeft}h Cooldown`;
+  };
+
   // Get the appropriate styles based on the transaction's current status.
   const currentStyles = statusStyles[transaction.status];
   
@@ -104,7 +128,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
               )}
               {transaction.status === TransactionStatus.Urge && (
                 <View style={itemStyles.cooldownBadge}>
-                  <Text style={itemStyles.cooldownBadgeText}>24h Cooldown</Text>
+                  <Text style={itemStyles.cooldownBadgeText}>{getRemainingCooldownText()}</Text>
                 </View>
               )}
             </View>
@@ -118,6 +142,12 @@ export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ tra
             <View style={itemStyles.actionButtonsContainer}>
                 {transaction.status === TransactionStatus.Urge ? (
                     <>
+                        <TouchableOpacity 
+                            onPress={() => onQuickAction && onQuickAction(transaction.id, 'return')}
+                            style={itemStyles.returnButton}
+                        >
+                            <Text style={itemStyles.returnButtonText}>Resisted</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity 
                             onPress={() => onQuickAction && onQuickAction(transaction.id, 'buy')}
                             style={itemStyles.buyButton}
